@@ -1,0 +1,135 @@
+<!--
+    PowerView.xaml — CPU and battery limits, and whether they are actually in force. FR-704, FR-707.
+
+    Each row shows both the rule and its live state, because a power rule can be set and still be
+    doing nothing: the app is not running, another program already owns its job object, or this
+    Windows build has no efficiency mode. A page that showed only the rule would let a user believe
+    they had capped an app that is running unrestricted.
+
+    Rules are created on the Apps page, not here. This page reports and removes.
+-->
+<UserControl x:Class="AppGuardian.UI.Views.PowerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+             xmlns:controls="clr-namespace:AppGuardian.UI.Controls"
+             d:DataContext="{d:DesignInstance Type=vm:PowerViewModel}"
+             mc:Ignorable="d">
+
+  <Grid Margin="{StaticResource Pad.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Grid Grid.Row="0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <TextBlock Grid.Column="0" Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+      <!-- Running on battery is worth stating: it is when these limits matter and when the user came looking. -->
+      <TextBlock Grid.Column="1"
+                 Style="{StaticResource Text.Caption}"
+                 VerticalAlignment="Center"
+                 Margin="{StaticResource Space.Inline.M}"
+                 Text="Running on battery"
+                 Visibility="{Binding OnBattery, Converter={StaticResource BoolToVisible}}" />
+    </Grid>
+
+    <Border Grid.Row="1" Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.S}" Padding="{StaticResource Pad.L}">
+      <TextBlock Style="{StaticResource Text.Small}" Text="{Binding CapabilityDisclosure}" />
+    </Border>
+
+    <ContentControl Grid.Row="2" Style="{StaticResource PageBanner}" />
+
+    <Border Grid.Row="3"
+            Style="{StaticResource Card.Flush}"
+            Padding="0"
+            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToCollapsed}}">
+      <ListBox ItemsSource="{Binding Rows}"
+               AutomationProperties.Name="Apps with battery or CPU limits"
+               ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+            <Setter Property="Focusable" Value="False" />
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:PowerRowViewModel}">
+            <Grid Margin="0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <!--
+                  A warning glyph, with the reason spelled out in the state line beside it. The glyph alone
+                  would only tell the user that something is wrong, not what.
+              -->
+              <TextBlock Grid.Column="0"
+                         Text="!"
+                         FontWeight="Bold"
+                         Width="14"
+                         VerticalAlignment="Center"
+                         Foreground="{DynamicResource State.Warn}"
+                         Visibility="{Binding NeedsAttention, Converter={StaticResource BoolToVisible}}"
+                         AutomationProperties.Name="Needs attention" />
+
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+
+                <TextBlock Margin="0,2,0,0" Text="{Binding StateText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
+                          <Setter Property="Foreground" Value="{DynamicResource State.Warn}" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </StackPanel>
+
+              <!-- The profile label, with its full description as the tooltip rather than a third line. -->
+              <TextBlock Grid.Column="2"
+                         Style="{StaticResource Text.Small}"
+                         VerticalAlignment="Center"
+                         Margin="12,0"
+                         Text="{Binding ProfileLabel}"
+                         ToolTip="{Binding ProfileDescription}" />
+
+              <Button Grid.Column="3"
+                      Content="Remove limit"
+                      Command="{Binding DataContext.RemoveCommand,
+                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}"
+                      AutomationProperties.Name="Remove battery and CPU limit for this app"
+                      VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <controls:EmptyState Grid.Row="3"
+                         Icon="{StaticResource Icon.Battery}"
+                         Headline="No limits are set yet"
+                         Body="Choose an app on the Apps page and pick a battery profile for it."
+                         ActionText="Open the Apps page"
+                         ActionCommand="{Binding DataContext.NavigateCommand,
+                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         ActionCommandParameter="{x:Static vm:PageId.Apps}"
+                         Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisible}}" />
+  </Grid>
+</UserControl>

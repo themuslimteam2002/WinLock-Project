@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AppGuardian.UI — the dashboard. SRS §8.2, FR-800–FR-806.
+
+    Unelevated and stateless. Every read and every write goes to the service over the pipe;
+    nothing is persisted here and no policy decision is made here. That is what lets the
+    dashboard be closed at any time without weakening protection, and what keeps the
+    credential store out of reach of a process running with the user's own privileges.
+
+    Deliberately not merged with the Agent, even though both are WPF in the same session.
+    The agent must survive the user closing the dashboard — it is the only process that can
+    un-hide their windows — and a single process would tie the two lifetimes together.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>AppGuardian.UI</RootNamespace>
+    <AssemblyName>AppGuardian</AssemblyName>
+    <IsPackable>false</IsPackable>
+
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
+
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+
+    <!--
+      app.manifest carries the PerMonitorV2 declaration (NFR §7.6) and asInvoker. It has to be named
+      here: an app.manifest sitting in the project folder unreferenced is not embedded, and the
+      process silently falls back to system DPI awareness — which looks like blurry text on a
+      secondary monitor rather than like a build error.
+    -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      The assembly is named AppGuardian, not AppGuardian.UI: this is the executable the user
+      launches from the Start menu, and the name in Task Manager should be the product name
+      rather than an internal layer name.
+    -->
+    <ApplicationIcon>Assets\appguardian.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      DependencyInjection and Logging only, not Microsoft.Extensions.Hosting. The dashboard builds a
+      plain ServiceProvider: it runs no background services and owns no lifetime of its own, so a host
+      would add a second lifetime to reason about alongside WPF's. See App.xaml.cs.
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AppGuardian.Shared\AppGuardian.Shared.csproj" />
+  </ItemGroup>
+
+  <!--
+    The icon is referenced above but not committed: this scaffold ships no binary assets.
+    Conditioned so a build without it still succeeds rather than failing on a missing file,
+    which would block every developer until an icon existed.
+  -->
+  <PropertyGroup Condition="!Exists('Assets\appguardian.ico')">
+    <ApplicationIcon />
+  </PropertyGroup>
+
+</Project>

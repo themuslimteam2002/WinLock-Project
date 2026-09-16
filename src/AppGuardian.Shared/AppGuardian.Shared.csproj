@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AppGuardian.Shared — SRS FR-206, API Design §1.1.
+    Single source of truth for wire types, models, and OS-integration interfaces.
+
+    Multi-targeted deliberately:
+
+      net8.0          The contract surface: envelopes, models, payload DTOs, framing,
+                      key derivation. Nothing here may touch a Windows-only API. The CI
+                      build-portable job compiles this TFM on Linux, which is what
+                      enforces the rule.
+
+      net8.0-windows  Everything above, plus Ipc/Windows/**, which needs the Windows-only
+                      pipe surface (PipeSecurity, PipeAccessRule, RunAsClient,
+                      PipeStream.IsMessageComplete). Referenced by Service, Agent, and UI.
+
+    The Windows-only files live in Ipc/Windows/ and are excluded from the portable TFM by
+    the ItemGroup below, so a Windows API added to the contract layer by mistake fails the
+    portable build rather than silently shipping.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
+    <RootNamespace>AppGuardian.Shared</RootNamespace>
+    <AssemblyName>AppGuardian.Shared</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    Exclude the Windows-only IPC plumbing from the portable target. Default globbing would
+    otherwise pull it into net8.0 and break the portable build.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <Compile Remove="Ipc\Windows\**\*.cs" />
+  </ItemGroup>
+
+  <!--
+    PipeSecurity and PipeAccessRule ship in this package rather than the base framework.
+    Only the Windows target needs it.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
+  </ItemGroup>
+
+</Project>

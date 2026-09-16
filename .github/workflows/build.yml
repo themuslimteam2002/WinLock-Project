@@ -1,0 +1,57 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # UI/Agent/Service target net8.0-windows and need a Windows runner.
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore AppGuardian.sln
+
+      - name: Build
+        run: dotnet build AppGuardian.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test AppGuardian.sln -c Release --no-build --verbosity normal
+
+      - name: Format check
+        run: dotnet format AppGuardian.sln --verify-no-changes --severity warn
+
+  # Shared + Tests are platform-neutral; this job catches accidental
+  # Windows-only API use leaking into AppGuardian.Shared.
+  #
+  # Shared multi-targets net8.0;net8.0-windows. Only the portable TFM is built
+  # here — that is the whole point of the job. Ipc/Windows/** is excluded from
+  # net8.0 by the csproj, so anything Windows-only added outside that folder
+  # fails here rather than shipping.
+  build-portable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Shared (portable TFM only)
+        run: dotnet build src/AppGuardian.Shared/AppGuardian.Shared.csproj -c Release -f net8.0
+
+      - name: Test (portable TFM only)
+        run: dotnet test tests/AppGuardian.Tests/AppGuardian.Tests.csproj -c Release -f net8.0

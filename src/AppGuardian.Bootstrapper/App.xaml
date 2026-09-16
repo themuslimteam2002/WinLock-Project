@@ -1,0 +1,9 @@
+<Application x:Class="AppGuardian.Bootstrapper.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="BootstrapperWindow.xaml">
+    <Application.Resources>
+        <!-- The bootstrapper is framework-independent and self-contained, so it does not need
+             the full palette. A small resource set keeps the payload under 3 MB. -->
+    </Application.Resources>
+</Application>

@@ -1,0 +1,92 @@
+<!--
+    Palette.Dark.xaml — colour only, no styles.
+
+    Split out of Theme.xaml so the palette can be swapped at runtime by replacing one merged
+    dictionary. Everything structural — converters, typography, control styles — stays in Theme.xaml
+    and reaches these brushes through DynamicResource, which is what makes the swap take effect on
+    already-realised visuals. A StaticResource reference is resolved once at load and would keep the
+    old brush forever.
+
+    Every key declared here must also be declared in Palette.Light.xaml, with the same name and the
+    same type. A key present in one and missing from the other is a resource-not-found at the moment
+    the user switches, which is the worst time to discover it.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Surfaces. Three levels of elevation is enough to separate page from card from input. -->
+  <SolidColorBrush x:Key="Surface.Page" Color="#12141A" />
+  <SolidColorBrush x:Key="Surface.Card" Color="#1A1D25" />
+  <SolidColorBrush x:Key="Surface.Input" Color="#22262F" />
+  <SolidColorBrush x:Key="Surface.Hover" Color="#272C36" />
+  <SolidColorBrush x:Key="Surface.Selected" Color="#2E3542" />
+  <SolidColorBrush x:Key="Border.Subtle" Color="#2C313B" />
+
+  <!--
+      A surface that is raised above a card, for banners and badges.
+
+      Those two used to draw on Surface.Input, which worked here but not in the light palette, where
+      Surface.Input and Surface.Card are both #FFFFFF — a badge inside a card had no background at
+      all there. Separating the token also stops a future change to text-input styling from silently
+      restyling every message banner in the app.
+  -->
+  <SolidColorBrush x:Key="Surface.Raised" Color="#232833" />
+
+  <!-- The track a skeleton placeholder pulses against while a list is still loading. -->
+  <SolidColorBrush x:Key="Surface.Skeleton" Color="#262B36" />
+
+  <!--
+      Text. The muted brush is #98A0AE rather than something dimmer: at 4.6:1 against the card
+      it still clears WCAG AA for body text, and every "muted" string in this app is a
+      disclosure the user is meant to actually read.
+  -->
+  <SolidColorBrush x:Key="Text.Primary" Color="#EDF0F5" />
+  <SolidColorBrush x:Key="Text.Muted" Color="#98A0AE" />
+  <SolidColorBrush x:Key="Text.OnAccent" Color="#0B0D12" />
+
+  <!--
+      State colours. Amber for degraded rather than a second shade of red: "partly protecting"
+      and "not protecting" are different situations and the strip has to distinguish them at a
+      glance. None of these is the only carrier of meaning — every state has text beside it, so
+      the page still reads for a user who cannot tell the two apart.
+  -->
+  <SolidColorBrush x:Key="Accent" Color="#5AA9E6" />
+  <SolidColorBrush x:Key="Accent.Pressed" Color="#4892CC" />
+  <SolidColorBrush x:Key="State.Good" Color="#5FCF8E" />
+  <SolidColorBrush x:Key="State.Warn" Color="#E8B75D" />
+  <SolidColorBrush x:Key="State.Bad" Color="#E8736A" />
+
+  <!--
+      Accent.Hover exists because the filled primary button used to show Accent.Pressed on hover and
+      again on press, so the two states were indistinguishable and the button appeared to do nothing
+      when clicked. Hover now lightens and press darkens, which is the direction people expect.
+      Against Text.OnAccent this sits at roughly 8.8:1.
+  -->
+  <SolidColorBrush x:Key="Accent.Hover" Color="#6EB6EB" />
+
+  <!--
+      Two translucent accent brushes for the animated states in Theme.xaml. They are alpha rather than
+      pre-blended so one brush works over a card, a row, and the page without a variant per surface.
+      Soft is the wash under a hovered accent control; Glow is the ring drawn outside a focused one.
+  -->
+  <SolidColorBrush x:Key="Accent.Soft" Color="#265AA9E6" />
+  <SolidColorBrush x:Key="Accent.Glow" Color="#595AA9E6" />
+
+  <!--
+      Shadow colour, as a Color rather than a Brush because DropShadowEffect.Color takes a Color and
+      cannot bind a brush. Pure black works on a dark page; the light palette uses a cool grey instead,
+      because black over white reads as grime rather than depth.
+  -->
+  <Color x:Key="Shadow.Color">#000000</Color>
+
+  <!--
+      The onboarding hero background. A gradient rather than a flat fill so the first screen the user
+      ever sees has some depth to it, kept to two stops eight percent apart so it never reads as a
+      decorative flourish.
+  -->
+  <LinearGradientBrush x:Key="Hero.Wash" StartPoint="0,0" EndPoint="1,1">
+    <GradientStop Offset="0" Color="#191E2A" />
+    <GradientStop Offset="1" Color="#12141A" />
+  </LinearGradientBrush>
+
+</ResourceDictionary>

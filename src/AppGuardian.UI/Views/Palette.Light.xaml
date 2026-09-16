@@ -1,0 +1,78 @@
+<!--
+    Palette.Light.xaml — the light counterpart of Palette.Dark.xaml.
+
+    Same keys, same types, same order, so the two files can be read side by side and a missing key is
+    visible. The values are not inverted mechanically: a naive inversion of a dark palette gives grey
+    text on white that fails contrast, and the state colours in particular have to be darkened rather
+    than lightened to stay legible on a white card.
+
+    Contrast against Surface.Card (#FFFFFF): Text.Primary #1B1F27 is about 14:1, Text.Muted #5A6270
+    about 5.3:1, State.Bad #B4322A about 5.2:1, State.Warn #8A5A00 about 5.1:1, State.Good #1E7A48
+    about 4.9:1, Accent #1668A8 about 5.4:1. All clear WCAG AA for body text, which matters because
+    every muted string in this app is a disclosure the user is meant to read.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Surfaces. The page is slightly grey so a white card reads as raised against it. -->
+  <SolidColorBrush x:Key="Surface.Page" Color="#F3F4F7" />
+  <SolidColorBrush x:Key="Surface.Card" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Surface.Input" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Surface.Hover" Color="#E9ECF2" />
+  <SolidColorBrush x:Key="Surface.Selected" Color="#DDE4EE" />
+  <SolidColorBrush x:Key="Border.Subtle" Color="#D2D7E0" />
+
+  <!--
+      Raised surface for banners and badges. Deliberately not #F3F4F7: it has to be distinct from the
+      card it sits inside (#FFFFFF) *and* from the page it sits on, or a banner disappears on one of
+      the two. This is the fix for banners and badges previously drawing on Surface.Input, which in
+      this palette is the same white as a card.
+  -->
+  <SolidColorBrush x:Key="Surface.Raised" Color="#EEF1F6" />
+
+  <!-- The track a skeleton placeholder pulses against while a list is still loading. -->
+  <SolidColorBrush x:Key="Surface.Skeleton" Color="#E6EAF1" />
+
+  <!--
+      Text. Near-black rather than pure black, which is harsh on white at 13px, and a muted grey dark
+      enough to stay above 4.5:1 on both the page and the card.
+  -->
+  <SolidColorBrush x:Key="Text.Primary" Color="#1B1F27" />
+  <SolidColorBrush x:Key="Text.Muted" Color="#5A6270" />
+  <!-- On the filled accent button, which is dark in this palette, so this one goes light. -->
+  <SolidColorBrush x:Key="Text.OnAccent" Color="#FFFFFF" />
+
+  <!--
+      State colours, darkened rather than inverted. The dark palette's #5FCF8E on white is about
+      1.9:1 and unreadable; these are the same hues taken down to a legible luminance.
+  -->
+  <SolidColorBrush x:Key="Accent" Color="#1668A8" />
+  <SolidColorBrush x:Key="Accent.Pressed" Color="#11557F" />
+  <SolidColorBrush x:Key="State.Good" Color="#1E7A48" />
+  <SolidColorBrush x:Key="State.Warn" Color="#8A5A00" />
+  <SolidColorBrush x:Key="State.Bad" Color="#B4322A" />
+
+  <!--
+      Accent.Hover: one step lighter than Accent, so hover lightens and press darkens instead of both
+      showing the same colour. Still about 4.6:1 against Text.OnAccent (#FFFFFF), so the label on a
+      hovered primary button stays above AA.
+  -->
+  <SolidColorBrush x:Key="Accent.Hover" Color="#1B79C0" />
+
+  <!-- Translucent accent wash and focus glow. See the dark palette for the reasoning. -->
+  <SolidColorBrush x:Key="Accent.Soft" Color="#1F1668A8" />
+  <SolidColorBrush x:Key="Accent.Glow" Color="#4D1668A8" />
+
+  <!--
+      A cool grey rather than black. Black at 25% over white reads as dirt; a desaturated blue-grey
+      reads as depth and matches the page tint.
+  -->
+  <Color x:Key="Shadow.Color">#8A94A6</Color>
+
+  <!-- The onboarding hero background, same two-stop treatment as the dark palette. -->
+  <LinearGradientBrush x:Key="Hero.Wash" StartPoint="0,0" EndPoint="1,1">
+    <GradientStop Offset="0" Color="#FFFFFF" />
+    <GradientStop Offset="1" Color="#E8EDF6" />
+  </LinearGradientBrush>
+
+</ResourceDictionary>

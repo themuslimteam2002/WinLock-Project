@@ -1,0 +1,134 @@
+<!--
+    LockedAppsView.xaml — locked apps and any unlock currently running. FR-304, FR-305.
+
+    The point of this page is the countdown. A temporary unlock is the only piece of state in the
+    product with a deadline attached, and a user who has just unlocked something needs to know how
+    long they have without going back to the app to find out the hard way.
+
+    The countdown ticks locally once a second and sends nothing; the page only asks the service for
+    state again when a countdown reaches zero.
+-->
+<UserControl x:Class="AppGuardian.UI.Views.LockedAppsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+             xmlns:controls="clr-namespace:AppGuardian.UI.Controls"
+             d:DataContext="{d:DesignInstance Type=vm:LockedAppsViewModel}"
+             mc:Ignorable="d">
+
+  <Grid Margin="{StaticResource Pad.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+    <!--
+        No page-level "lock everything" button here. The status strip at the top of the window already
+        carries one, bound to the shell's own command; a second copy on this page would have to reach up
+        through the visual tree for the same command and would be the only control in the app whose
+        enabled state came from a different view model than its DataContext.
+    -->
+
+    <ContentControl Grid.Row="1" Style="{StaticResource PageBanner}" />
+
+    <TextBlock Grid.Row="2"
+               Style="{StaticResource Text.Body}"
+               Margin="{StaticResource Space.Stack.S}"
+               Text="Apps that lock ask for your PIN or Windows Hello when you switch to them. An unlock lasts for the time set on each app's rule, then the lock comes back on its own." />
+
+    <Border Grid.Row="3"
+            Style="{StaticResource Card.Flush}"
+            Padding="0"
+            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToCollapsed}}">
+      <ListBox ItemsSource="{Binding Rows}"
+               AutomationProperties.Name="Locked apps"
+               ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemContainerStyle>
+          <!-- Not selectable: nothing on this page acts on a selection, and a highlight would imply it did. -->
+          <Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+            <Setter Property="Focusable" Value="False" />
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:LockRowViewModel}">
+            <Grid Margin="0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+
+                <!--
+                    StateText already leads with the number ("Unlocked for 4:12"), so there is no separate
+                    countdown column to keep in step with it.
+                -->
+                <TextBlock Margin="0,2,0,0" Text="{Binding StateText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasActiveUnlock}" Value="True">
+                          <Setter Property="Foreground" Value="{DynamicResource State.Warn}" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Small}"
+                         VerticalAlignment="Center"
+                         Margin="12,0"
+                         Text="Not running"
+                         Visibility="{Binding IsRunning, Converter={StaticResource BoolToCollapsed}}" />
+
+              <!--
+                  Only offered while an unlock is actually running. A "Lock now" button on an app that is
+                  already locked does nothing, and a button that does nothing teaches the user to distrust
+                  the rest of them.
+              -->
+              <Button Grid.Column="2"
+                      Content="Lock now"
+                      Command="{Binding DataContext.LockNowCommand,
+                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}"
+                      AutomationProperties.Name="Lock this app immediately"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding HasActiveUnlock, Converter={StaticResource BoolToVisible}}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!--
+        Skeleton while the service comes up, EmptyState once we know the list is actually empty.
+        Order matters: the skeleton's Visibility is the inverse of HasRows, and the EmptyState's is the
+        inverse of IsEmpty — but the two flags are only both meaningful when loading has finished, so
+        the EmptyState stays collapsed during the skeleton phase by being wrapped in the same negation.
+    -->
+    <ContentControl Grid.Row="3"
+                    Style="{StaticResource SkeletonList}"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisible}}" />
+
+    <controls:EmptyState Grid.Row="3"
+                         Icon="{StaticResource Icon.Lock}"
+                         Headline="Nothing is locked yet"
+                         Body="Choose an app on the Apps page and turn its lock on."
+                         ActionText="Open the Apps page"
+                         ActionCommand="{Binding DataContext.NavigateCommand,
+                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         ActionCommandParameter="{x:Static vm:PageId.Apps}"
+                         Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisible}}" />
+  </Grid>
+</UserControl>

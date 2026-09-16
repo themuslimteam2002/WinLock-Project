@@ -1,0 +1,210 @@
+<!--
+    MainWindow.xaml — navigation shell and status strip. FR-800, FR-804, FR-806.
+
+    Three regions: the status strip across the top, the navigation list down the left, and the
+    current page filling the rest. The strip is at the top rather than the bottom because
+    "is my PC protected right now" is the question this window exists to answer, and an answer
+    below the fold is an answer the user has to go looking for.
+
+    The navigation list is hidden entirely while onboarding is required, rather than disabled.
+    FR-300 makes setup mandatory; greyed-out entries would invite the user to try them and then
+    refuse, which teaches nothing.
+-->
+<Window x:Class="AppGuardian.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+        xmlns:ctrl="clr-namespace:AppGuardian.UI.Controls"
+        Title="AppGuardian"
+        Width="1020"
+        Height="700"
+        MinWidth="760"
+        MinHeight="520"
+        Background="{DynamicResource Surface.Page}"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.InputBindings>
+    <!-- F5 refreshes whatever is on screen; Ctrl+L is the panic lock. Both are documented in Settings. -->
+    <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+    <KeyBinding Key="L" Modifiers="Control" Command="{Binding LockNowCommand}" />
+  </Window.InputBindings>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- ============ status strip ============ -->
+    <!--
+        The status strip is page chrome, not a page, so it takes the header inset rather than Pad.Page —
+        24px of side padding on a 1020px window pushes the status line an inch in from the edge for no
+        visual reason.
+    -->
+    <Border Grid.Row="0"
+            Style="{StaticResource Card}"
+            BorderThickness="0,0,0,1"
+            Padding="{StaticResource Pad.Header}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!--
+            The state dot. Colour alone carries no meaning here — the headline beside it says the
+            same thing in words, which is what a colour-blind user and a screen reader both rely on.
+
+            Replaced with a Border shaped as a circle: an Ellipse whose Fill is set both on the element
+            and inside an implicit style duplicates the brush twice, and the PulseStatus storyboard in
+            Animations.xaml drives Opacity here — so the dot is a 12px Border with CornerRadius 6, the
+            style sets Fill once through Background, and the trigger swaps Background rather than Fill.
+        -->
+        <Border Grid.Column="0"
+                Margin="0,0,{StaticResource Space.Inline.M},0"
+                VerticalAlignment="Center">
+          <Border.Style>
+            <!-- A 12px solid dot, not a 16px stroked Path. Badge gives Background/BorderThickness/CornerRadius
+                 the way a status dot wants; the implicit setters here override only size and padding. -->
+            <Style TargetType="Border" BasedOn="{StaticResource Badge}">
+              <Setter Property="Width" Value="12" />
+              <Setter Property="Height" Value="12" />
+              <Setter Property="Padding" Value="{StaticResource Space.None}" />
+              <Setter Property="Background" Value="{DynamicResource State.Good}" />
+              <Setter Property="BorderThickness" Value="0" />
+              <Setter Property="CornerRadius" Value="{StaticResource Radius.Switch}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                  <Setter Property="Background" Value="{DynamicResource State.Warn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsDegraded}" Value="True">
+                  <Setter Property="Background" Value="{DynamicResource State.Warn}" />
+                  <!--
+                      Pulse when degraded: a subtle opacity cycle draws the eye to the dot without
+                      being as aggressive as a flashing colour. Driven by the shared PulseStatus
+                      storyboard from Animations.xaml, so the animation is defined in one place and
+                      the entry/exit logic is identical across any element that uses it.
+                  -->
+                  <DataTrigger.EnterActions>
+                    <BeginStoryboard Name="PulseStory" Storyboard="{StaticResource PulseStatus}" />
+                  </DataTrigger.EnterActions>
+                  <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="PulseStory" />
+                  </DataTrigger.ExitActions>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceReachable}" Value="False">
+                  <Setter Property="Background" Value="{DynamicResource State.Bad}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+        </Border>
+
+        <StackPanel Grid.Column="1" Margin="0,-3,{StaticResource Space.Inline.M},0">
+          <!--
+              LiveSetting=Text so a narrator announces a change from "Protecting" to "Not protecting"
+              without the user having to move focus back here to discover it.
+          -->
+          <TextBlock Style="{StaticResource Text.Subheading}"
+                     Text="{Binding StatusHeadline}"
+                     AutomationProperties.LiveSetting="Assertive" />
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="{StaticResource Space.Stack.XS}"
+                     Text="{Binding StatusDetail}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Content="{Binding PauseButtonText}"
+                  Style="{StaticResource Button.Quiet}"
+                  Command="{Binding TogglePauseCommand}"
+                  Margin="0,0,{StaticResource Space.Inline.S},0"
+                  AutomationProperties.Name="Toggle protection pause"
+                  ToolTip="Turns every lock, hide and battery limit off or back on at once." />
+
+          <Button Content="Lock now"
+                  Style="{StaticResource Button.Primary}"
+                  Command="{Binding LockNowCommand}"
+                  AutomationProperties.Name="Lock all protected applications now"
+                  ToolTip="Ends every active unlock immediately (Ctrl+L)." />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ============ body ============ -->
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Width="188"
+              Background="{DynamicResource Surface.Card}"
+              BorderBrush="{DynamicResource Border.Subtle}"
+              BorderThickness="0,0,1,0"
+              Visibility="{Binding OnboardingRequired, Converter={StaticResource BoolToCollapsed}}">
+        <ListBox ItemsSource="{Binding NavigationItems}"
+                 SelectedValuePath="Id"
+                 SelectedValue="{Binding CurrentId, Mode=OneWay}"
+                 Margin="0,8"
+                 AutomationProperties.Name="Sections">
+          <ListBox.ItemContainerStyle>
+            <!--
+                Selection is driven from CurrentId rather than the other way round: the shell can refuse
+                a navigation (IGuardNavigation), and a two-way SelectedItem binding would leave the list
+                highlighting a page the shell declined to show.
+            -->
+            <Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+              <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=OneWay}" />
+              <Setter Property="ToolTip" Value="{Binding Description}" />
+              <Setter Property="AutomationProperties.HelpText" Value="{Binding Description}" />
+            </Style>
+          </ListBox.ItemContainerStyle>
+
+          <ListBox.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:NavigationItem}">
+              <!--
+                  A button inside the row, not a click handler on the row: this is what makes the whole
+                  entry reachable by keyboard and activatable with Space, and it routes through the same
+                  NavigateCommand the shell validates.
+              -->
+              <Button Style="{StaticResource Button.Quiet}"
+                      HorizontalContentAlignment="Left"
+                      Padding="0"
+                      Command="{Binding DataContext.NavigateCommand,
+                                        RelativeSource={RelativeSource AncestorType=Window}}"
+                      CommandParameter="{Binding Id}">
+                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}" />
+              </Button>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!--
+          One ContentControl over Current. The DataTemplates that map each page view model to its view
+          live in Views/PageTemplates.xaml, so adding a page is a view model, a UserControl and one
+          template — no change here.
+      -->
+      <ContentControl Grid.Column="1"
+                      Content="{Binding Current}"
+                      Focusable="False" />
+    </Grid>
+
+    <!--
+        Toast overlay. Sits above all content at the bottom-right. DataContext is the ToastService
+        singleton, resolved from the window's own DataContext's service provider — but since the
+        shell does not expose the container, we set it in code-behind.
+    -->
+    <ctrl:ToastHost x:Name="ToastOverlay"
+                    Grid.Row="0"
+                    Grid.RowSpan="2"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Focusable="False"
+                    IsHitTestVisible="True" />
+  </Grid>
+</Window>

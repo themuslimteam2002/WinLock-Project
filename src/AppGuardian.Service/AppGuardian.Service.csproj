@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AppGuardian.Service — SRS §8.2. Runs as LocalSystem under the SCM.
+
+    Owns everything that must survive a user logging off and everything that needs
+    privilege the interactive processes do not have: the policy store, the credential
+    store, process monitoring, Job Object throttling, and the audit log.
+
+    Shows no UI, ever. Session 0 isolation makes that impossible (SRS §8.1) — the agent
+    exists precisely because of it.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AppGuardian.Service</RootNamespace>
+    <AssemblyName>AppGuardian.Service</AssemblyName>
+    <IsPackable>false</IsPackable>
+
+    <!-- Single self-contained folder keeps the installer simple; NFR-Pr. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <UseWindowsForms>false</UseWindowsForms>
+    <UseWPF>false</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.EventLog" Version="8.0.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+
+    <!--
+      Icon extraction only (FR-404). System.Drawing.Common is Windows-only from .NET 7 onward, which
+      is fine here — the service never targets anything else — but it is the reason icon work stays in
+      this project rather than in Shared, whose portable target must not reference it.
+    -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AppGuardian.Shared\AppGuardian.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

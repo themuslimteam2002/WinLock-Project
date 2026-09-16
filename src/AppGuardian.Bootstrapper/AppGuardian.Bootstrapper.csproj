@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AppGuardian.Bootstrapper — a small (~1.5 MB) single-file app that securely downloads and
+    launches the main AppGuardian payload. Served directly from the marketing website.
+
+    Framework-dependent, not self-contained. The three candidate builds were:
+
+      self-contained + trimmed   ~3 MB   — impossible. The SDK rejects PublishTrimmed for WPF
+                                           (NETSDK1168): XAML resolves types by name at runtime,
+                                           so the trimmer cannot see those references and would
+                                           strip types the BAML loader needs.
+      self-contained, untrimmed  ~65 MB  — works, but a 65 MB download whose only job is to
+                                           download something smaller is indefensible.
+      framework-dependent        ~1.5 MB — chosen.
+
+    The cost of the choice: the .NET 8 Desktop Runtime (x64) must already be present, or the
+    apphost shows Windows' own "install the .NET Desktop Runtime" dialog and exits. That is
+    acceptable here only because the runtime is already a stated prerequisite of the product —
+    ADR-011 makes the service, agent, and dashboard framework-dependent too, and
+    AppGuardian.iss checks for it by name in InitializeSetup. The download page must state the
+    prerequisite alongside the button; a user who clicks past it gets an OS dialog, not ours.
+
+    No reference to AppGuardian.Shared: this needs only System.Net.Http,
+    System.Security.Cryptography, and System.IO.Compression from the BCL.
+
+    NFR-S5: this app downloads code at runtime (the payload) but does not execute
+    dynamically-generated code. The downloaded payload is hash-verified against a
+    value compiled into the bootstrapper, signed by the publisher, and launched
+    only after verification passes.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>AppGuardian.Bootstrapper</RootNamespace>
+    <AssemblyName>AppGuardianBootstrapper</AssemblyName>
+    <IsPackable>false</IsPackable>
+
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
+
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <!-- One file on the website, but the shared runtime does the heavy lifting. Trimming and
+         the self-extract switches are both meaningless without SelfContained and are omitted
+         rather than set to false, so the reason is in the comment above and not in a property
+         that looks like it might be toggled back on. -->
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+
+    <ApplicationIcon>..\AppGuardian.UI\Assets\appguardian.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <!-- ApplicationIcon is a property, not an item. Cleared when the icon file is absent so a
+       fresh clone without the asset still builds. -->
+  <PropertyGroup Condition="!Exists('..\AppGuardian.UI\Assets\appguardian.ico')">
+    <ApplicationIcon></ApplicationIcon>
+  </PropertyGroup>
+
+</Project>

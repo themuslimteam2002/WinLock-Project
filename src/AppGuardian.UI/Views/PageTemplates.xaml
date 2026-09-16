@@ -1,0 +1,313 @@
+<!--
+    PageTemplates.xaml — the map from view model to view.
+
+    The shell shows pages through a single ContentControl bound to ShellViewModel.Current, so the
+    only thing that decides which view appears is a DataTemplate keyed on the view model's type.
+    That is what lets the shell navigate by PageId without naming a single UserControl, and what
+    keeps the view models free of any reference to their views.
+
+    Also holds the rule editor template, which is shared rather than page-local: the Apps page
+    edits a rule inline, and a future "protect this app" prompt from the agent would want the same
+    surface rather than a second copy of it.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="clr-namespace:AppGuardian.UI.Views"
+                    xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels">
+
+  <!--
+      Onboarding has its own entrance on the step host inside OnboardingView.xaml (WizardStepEnter runs
+      per step), so it is wrapped in a plain ContentPresenter rather than the Border/PageEnter pattern the
+      other pages use. A Border here would layer a second fade under the step-level animation.
+  -->
+  <DataTemplate DataType="{x:Type vm:OnboardingViewModel}">
+    <views:OnboardingView />
+  </DataTemplate>
+
+  <!--
+      Every page after onboarding enters with a fade + slide-up. The transition takes 200 ms — fast
+      enough that it does not feel like a loading screen, slow enough that the user can see the content
+      settling in rather than snapping. Defined once here rather than per-view, so all pages feel the
+      same weight.
+
+      The Border wrapper exists only for the RenderTransform; it is transparent, borderless, and adds
+      no visual weight. A RenderTransform on the UserControl itself would conflict with any the view
+      set internally.
+  -->
+
+  <DataTemplate DataType="{x:Type vm:AppsViewModel}">
+    <Border Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Border.RenderTransform>
+        <TranslateTransform />
+      </Border.RenderTransform>
+      <Border.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+          <BeginStoryboard Storyboard="{StaticResource PageEnter}" />
+        </EventTrigger>
+      </Border.Triggers>
+      <views:AppsView />
+    </Border>
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:LockedAppsViewModel}">
+    <Border Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Border.RenderTransform>
+        <TranslateTransform />
+      </Border.RenderTransform>
+      <Border.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+          <BeginStoryboard Storyboard="{StaticResource PageEnter}" />
+        </EventTrigger>
+      </Border.Triggers>
+      <views:LockedAppsView />
+    </Border>
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:HiddenAppsViewModel}">
+    <Border Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Border.RenderTransform>
+        <TranslateTransform />
+      </Border.RenderTransform>
+      <Border.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+          <BeginStoryboard Storyboard="{StaticResource PageEnter}" />
+        </EventTrigger>
+      </Border.Triggers>
+      <views:HiddenAppsView />
+    </Border>
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:PowerViewModel}">
+    <Border Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Border.RenderTransform>
+        <TranslateTransform />
+      </Border.RenderTransform>
+      <Border.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+          <BeginStoryboard Storyboard="{StaticResource PageEnter}" />
+        </EventTrigger>
+      </Border.Triggers>
+      <views:PowerView />
+    </Border>
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:ActivityViewModel}">
+    <Border Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Border.RenderTransform>
+        <TranslateTransform />
+      </Border.RenderTransform>
+      <Border.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+          <BeginStoryboard Storyboard="{StaticResource PageEnter}" />
+        </EventTrigger>
+      </Border.Triggers>
+      <views:ActivityView />
+    </Border>
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+    <Border Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Border.RenderTransform>
+        <TranslateTransform />
+      </Border.RenderTransform>
+      <Border.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+          <BeginStoryboard Storyboard="{StaticResource PageEnter}" />
+        </EventTrigger>
+      </Border.Triggers>
+      <views:SettingsView />
+    </Border>
+  </DataTemplate>
+
+  <!--
+      The rule editor. Keyed rather than typed, because AppRowViewModel also appears in the list on the
+      left and that context wants a one-line row, not this.
+
+      Three cards, in the order the SRS presents the features: lock, hide, battery. Each card states what
+      its mechanism actually guarantees before offering the switch, because all three are best-effort and
+      a user who finds that out afterwards has already relied on it.
+  -->
+  <DataTemplate x:Key="RuleEditorTemplate" DataType="{x:Type vm:AppRowViewModel}">
+    <StackPanel Margin="0,0,0,16">
+
+      <!-- header -->
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <Border Grid.Column="0" Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
+            <Image Source="{Binding IconBase64, Converter={StaticResource Base64Image}}" Stretch="Uniform" />
+          </Border>
+
+          <StackPanel Grid.Column="1">
+            <TextBlock Style="{StaticResource Text.Subheading}" Text="{Binding DisplayName}" />
+
+            <!-- The full path, selectable. It is how a user tells two apps with the same name apart. -->
+            <TextBox Text="{Binding ExecutablePath, Mode=OneWay}"
+                     IsReadOnly="True"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="0"
+                     Margin="0,4,0,0"
+                     FontSize="12"
+                     Foreground="{DynamicResource Text.Muted}"
+                     TextWrapping="Wrap"
+                     AutomationProperties.Name="Program file path" />
+
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Margin="0,6,0,0"
+                       Foreground="{DynamicResource State.Warn}"
+                       Text="{Binding UnsupportedReason}"
+                       Visibility="{Binding UnsupportedReason,
+                                            Converter={StaticResource TextToVisible}}" />
+
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Margin="0,6,0,0"
+                       Text="Not running at the moment. Rules apply the next time it starts."
+                       Visibility="{Binding IsRunning, Converter={StaticResource BoolToCollapsed}}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- lock -->
+      <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="Lock" />
+
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="0,6,0,10"
+                     Text="Asks for Windows Hello or your PIN when you switch to this app. It is a prompt over the app, not a Windows security boundary — an administrator can bypass it." />
+
+          <CheckBox Content="Ask for my PIN or Windows Hello to open this app"
+                    IsChecked="{Binding LockEnabled}"
+                    IsEnabled="{Binding IsSupported}"
+                    AutomationProperties.Name="Ask for PIN or Windows Hello to open this app" />
+
+          <StackPanel Margin="24,8,0,0" IsEnabled="{Binding TempUnlockEditable}">
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Text="Stay unlocked for (minutes) — after this, the lock returns" />
+
+            <!--
+                A spinner-less TextBox with LostFocus updating, not PropertyChanged: this saves on every
+                change, and PropertyChanged would send a write for each digit typed — including the
+                incomplete "1" on the way to "15".
+            -->
+            <TextBox Text="{Binding TempUnlockMinutes, UpdateSourceTrigger=LostFocus}"
+                     Width="72"
+                     HorizontalAlignment="Left"
+                     Margin="0,6,0,0"
+                     AutomationProperties.Name="Minutes to stay unlocked" />
+
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Margin="0,6,0,0"
+                       Text="Between 1 and 60 minutes. Values outside that range are adjusted to fit." />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- hide -->
+      <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="Hide" />
+
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="0,6,0,10"
+                     Text="Moves this app's windows to a separate desktop so they are off your taskbar and Alt+Tab. The app keeps running, stays visible in Task Manager, and its files are untouched — this hides windows, it does not protect data." />
+
+          <CheckBox Content="Keep this app's windows hidden"
+                    IsChecked="{Binding HideEnabled}"
+                    IsEnabled="{Binding IsSupported}"
+                    AutomationProperties.Name="Keep this app's windows hidden" />
+
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="24,8,0,0"
+                     Text="You can bring hidden windows back at any time from the Hidden page." />
+        </StackPanel>
+      </Border>
+
+      <!-- battery -->
+      <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="Battery and CPU" />
+
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="0,6,0,10"
+                     Text="Caps how much processor time this app gets. It cannot limit memory, disk, graphics or network use." />
+
+          <!--
+              Radio buttons, not a dropdown. The options are mutually exclusive and their differences need
+              a line of explanation each, which a closed combo box cannot show.
+
+              There are FOUR, not three: one per PowerProfile member plus one for the absence of a rule.
+              An earlier version offered only three and left PowerProfile.Balanced unreachable, so a rule
+              that already carried Balanced — written by the Battery page or by a hand-edited policy file —
+              displayed with nothing selected at all. The parameter for the null option is the sentinel
+              NullableEnumEqualityConverter.NoneSentinel; the other three are literal enum member names, so
+              adding a member to PowerProfile means adding a button here and nothing else.
+
+              GroupName is bound to AppId so switching apps does not leave two groups fighting; without
+              it, WPF groups by parent and a recycled container could inherit the previous app's selection.
+          -->
+          <RadioButton GroupName="{Binding AppId}"
+                       Content="No rule — this app is left alone entirely"
+                       IsChecked="{Binding PowerProfile, Converter={StaticResource NullableEnumEquals},
+                                           ConverterParameter=NoRule}"
+                       AutomationProperties.Name="No power rule for this app" />
+
+          <RadioButton GroupName="{Binding AppId}"
+                       Content="Balanced — a rule, but no cap and normal priority"
+                       IsChecked="{Binding PowerProfile, Converter={StaticResource NullableEnumEquals},
+                                           ConverterParameter=Balanced}"
+                       IsEnabled="{Binding IsSupported}"
+                       AutomationProperties.Name="Balanced power profile" />
+
+          <RadioButton GroupName="{Binding AppId}"
+                       Content="Low impact — moderate CPU cap, lower priority"
+                       IsChecked="{Binding PowerProfile, Converter={StaticResource NullableEnumEquals},
+                                           ConverterParameter=LowImpact}"
+                       IsEnabled="{Binding IsSupported}"
+                       AutomationProperties.Name="Low impact power profile" />
+
+          <RadioButton GroupName="{Binding AppId}"
+                       Content="Strict savings — hard CPU cap, lowest priority"
+                       IsChecked="{Binding PowerProfile, Converter={StaticResource NullableEnumEquals},
+                                           ConverterParameter=StrictSavings}"
+                       IsEnabled="{Binding IsSupported}"
+                       AutomationProperties.Name="Strict savings power profile" />
+
+          <StackPanel Margin="24,8,0,0" IsEnabled="{Binding PowerOptionsEditable}">
+            <CheckBox Content="Lower this app's priority"
+                      IsChecked="{Binding ReducePriority}"
+                      AutomationProperties.Name="Lower process priority" />
+            <CheckBox Content="Use Windows' efficiency mode where available"
+                      IsChecked="{Binding EcoQos}"
+                      AutomationProperties.Name="Use Windows efficiency mode where available" />
+          </StackPanel>
+
+          <!-- What the choice above will actually do, in the profile's own terms. FR-704. -->
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="0,12,0,0"
+                     Text="{Binding PowerSummary}" />
+        </StackPanel>
+      </Border>
+
+      <!--
+          Delete is last and quiet. It removes the rule but changes nothing about the app itself, which the
+          label says explicitly — "Remove" next to a list of apps reads like "uninstall".
+      -->
+      <Button Content="Remove all rules for this app"
+              Style="{StaticResource Button.Danger}"
+              HorizontalAlignment="Left"
+              Margin="0,16,0,0"
+              Command="{Binding DataContext.RemoveRuleCommand,
+                                RelativeSource={RelativeSource AncestorType=UserControl}}"
+              CommandParameter="{Binding}"
+              AutomationProperties.Name="Remove all rules for this app"
+              Visibility="{Binding IsProtected, Converter={StaticResource BoolToVisible}}" />
+    </StackPanel>
+  </DataTemplate>
+
+</ResourceDictionary>

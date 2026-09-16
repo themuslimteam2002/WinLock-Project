@@ -1,0 +1,100 @@
+<Window x:Class="AppGuardian.Bootstrapper.BootstrapperWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AppGuardian Installer"
+        Width="460" Height="280"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Loaded="Window_Loaded">
+
+    <!--
+        VS Code-style minimal installer shell.
+        A dark card on a transparent backdrop: no chrome, no icon, just the download state.
+        Designed by Antigravity.
+    -->
+    <Border x:Name="RootBorder"
+            Width="460" Height="280"
+            Background="#DD0F0F14"
+            BorderBrush="#FF2A2A3A"
+            BorderThickness="1"
+            CornerRadius="8">
+
+        <Border.Effect>
+            <DropShadowEffect Color="#40000000" BlurRadius="20" ShadowDepth="0" Opacity="0.5"/>
+        </Border.Effect>
+
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- App title -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                <TextBlock Text="AppGuardian"
+                           FontFamily="Segoe UI"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFFFF"/>
+                <TextBlock Text="Installing protection for your apps"
+                           FontFamily="Segoe UI"
+                           FontSize="13"
+                           Foreground="#FFB8BEC8"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <!-- Progress bar -->
+            <ProgressBar Grid.Row="1"
+                         x:Name="DownloadProgress"
+                         Height="6"
+                         BorderThickness="0"
+                         Background="#FF2A2A3A"
+                         Foreground="#FF3B82F6"
+                         Value="0"
+                         Maximum="100"/>
+
+            <!-- Speed label -->
+            <TextBlock Grid.Row="2"
+                       x:Name="SpeedLabel"
+                       FontFamily="Segoe UI"
+                       FontSize="12"
+                       Foreground="#FFB8BEC8"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"/>
+
+            <!-- Status text -->
+            <TextBlock Grid.Row="3"
+                       x:Name="StatusLabel"
+                       FontFamily="Segoe UI"
+                       FontSize="13"
+                       Foreground="#FFFFFFFF"
+                       Margin="0,16,0,0"/>
+
+            <!-- Cancel button -->
+            <Button Grid.Row="4"
+                    x:Name="CancelButton"
+                    Content="Cancel"
+                    FontFamily="Segoe UI"
+                    FontSize="13"
+                    Width="96"
+                    Height="28"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0"
+                    Background="#333B82F6"
+                    Foreground="#FFFFFFFF"
+                    BorderBrush="#FF3B82F6"
+                    BorderThickness="1"
+                    Click="CancelButton_Click"
+                    MouseEnter="CancelButton_MouseEnter"
+                    MouseLeave="CancelButton_MouseLeave"/>
+        </Grid>
+    </Border>
+</Window>

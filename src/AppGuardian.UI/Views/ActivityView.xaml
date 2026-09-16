@@ -1,0 +1,160 @@
+<!--
+    ActivityView.xaml — the local audit log. FR-803, FR-508.
+
+    Read-only. This log is the record of what AppGuardian did on this PC, and its one real job is
+    telling the owner whether someone tried to get into a locked app while they were away — a
+    dashboard that could delete entries would make it worthless for that.
+
+    Newest first, with the time in the user's local zone. The filters narrow the fetch by action;
+    "only problems" is applied locally because the contract filters on action, not outcome.
+-->
+<UserControl x:Class="AppGuardian.UI.Views.ActivityView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+             d:DataContext="{d:DesignInstance Type=vm:ActivityViewModel}"
+             mc:Ignorable="d">
+
+  <Grid Margin="{StaticResource Pad.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+    <TextBlock Grid.Row="1"
+               Style="{StaticResource Text.Body}"
+               Margin="{StaticResource Space.Stack.S}"
+               Text="Everything AppGuardian has done on this PC, including failed unlock attempts. The log is stored on this PC and is never sent anywhere." />
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="{StaticResource Space.Stack.L}">
+      <ComboBox ItemsSource="{Binding FilterOptions}"
+                SelectedValuePath="Action"
+                SelectedValue="{Binding Filter}"
+                DisplayMemberPath="Label"
+                Width="220"
+                AutomationProperties.Name="Filter by what happened" />
+
+      <CheckBox Content="Only show problems"
+                IsChecked="{Binding FailuresOnly}"
+                Margin="16,0,0,0"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="Only show problems and failed attempts"
+                ToolTip="Refused and failed actions only — including failed unlock attempts." />
+
+      <Button Style="{StaticResource Button.Quiet}"
+              Content="Refresh"
+              Command="{Binding RefreshCommand}"
+              AutomationProperties.Name="Refresh activity log"
+              Margin="{StaticResource Space.Inline.M}" />
+    </StackPanel>
+
+    <Border Grid.Row="3"
+            Style="{StaticResource Card.Flush}"
+            Padding="0"
+            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToCollapsed}}">
+      <ListBox ItemsSource="{Binding Entries}"
+               AutomationProperties.Name="Activity log"
+               ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+            <Setter Property="Focusable" Value="False" />
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemsPanel>
+          <!-- Two hundred rows, each with up to four lines. Virtualised so the filter feels instant. -->
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel VirtualizationMode="Recycling" />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:AuditRowViewModel}">
+            <Grid Margin="0,3">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Column="0"
+                         Style="{StaticResource Text.Small}"
+                         Text="{Binding WhenText}"
+                         VerticalAlignment="Top" />
+
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.S}">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding ActionText}" Style="{StaticResource Text.Body}" />
+                  <TextBlock Style="{StaticResource Text.Caption}"
+                             Margin="{StaticResource Space.Inline.S}"
+                             Text="{Binding ActorText}" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Text="{Binding Detail}"
+                           Visibility="{Binding Detail, Converter={StaticResource TextToVisible}}" />
+
+                <!--
+                    A buffered entry's timestamp came from a client that could not reach the service, so it
+                    is less trustworthy than the rest of the log. Anyone reading this as evidence of when
+                    something happened needs that distinction on the row, not in a footnote.
+                -->
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Foreground="{DynamicResource State.Warn}"
+                           Text="{Binding BufferedNote}"
+                           Visibility="{Binding WasBuffered, Converter={StaticResource BoolToVisible}}" />
+              </StackPanel>
+
+              <TextBlock Grid.Column="2"
+                         VerticalAlignment="Top"
+                         Text="{Binding ResultText}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource State.Bad}" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!--
+        The Activity log's empty state is message-driven rather than icon-driven — the empty message is
+        itself explanatory ("No activity yet" vs "Nothing matches your filter"), so an EmptyState badge
+        would be redundant alongside it.
+
+        Visibility follows the skeleton rather than IsEmpty: while loading, the list is genuinely empty
+        and an empty-state headline would flash before the real data.
+    -->
+    <TextBlock Grid.Row="3"
+               Style="{StaticResource Text.Caption}"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               Text="{Binding Message}"
+               Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisible}}" />
+
+    <ContentControl Grid.Row="3"
+                    Style="{StaticResource SkeletonList}"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisible}}" />
+
+    <TextBlock Grid.Row="4"
+               Style="{StaticResource Text.Caption}"
+               Margin="{StaticResource Space.Stack.S}"
+               Text="{Binding TruncationNote}"
+               Visibility="{Binding Truncated, Converter={StaticResource BoolToVisible}}" />
+  </Grid>
+</UserControl>

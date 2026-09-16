@@ -1,0 +1,41 @@
+<Project>
+
+  <!-- Shared build settings for every project in the solution.
+       SRS §7.7 (maintainability), §7.8 (reproducible builds). -->
+
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- SRS §2.2: ARM64 out of scope for MVP. x64 only. -->
+    <Platforms>AnyCPU</Platforms>
+    <RuntimeIdentifier Condition="'$(SelfContained)' == 'true'">win-x64</RuntimeIdentifier>
+    <RollForward>LatestMajor</RollForward>
+
+    <Version>0.1.0</Version>
+    <Company>AppGuardian</Company>
+    <Product>AppGuardian for Windows</Product>
+    <Copyright>Copyright (c) 2026 Hafiz. MIT licensed.</Copyright>
+    <Authors>Hafiz</Authors>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <!-- Reproducible builds (SRS §7.8 / DoD). -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- NFR-S5: no dynamic code download or execution, no unsigned plugin loading. -->
+  <PropertyGroup>
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+  </PropertyGroup>
+
+</Project>

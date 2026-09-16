@@ -1,0 +1,16 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  AppGuardian.Shared -> D:\All Builds\Claude Build\Winlock Project\src\AppGuardian.Shared\bin\Release\net8.0\AppGuardian.Shared.dll
+  AppGuardian.Shared -> D:\All Builds\Claude Build\Winlock Project\src\AppGuardian.Shared\bin\Release\net8.0-windows\AppGuardian.Shared.dll
+  AppGuardian.Bootstrapper -> D:\All Builds\Claude Build\Winlock Project\src\AppGuardian.Bootstrapper\bin\Release\net8.0-windows\win-x64\AppGuardianBootstrapper.dll
+  AppGuardian.Service -> D:\All Builds\Claude Build\Winlock Project\src\AppGuardian.Service\bin\Release\net8.0-windows\win-x64\AppGuardian.Service.dll
+  AppGuardian.Agent -> D:\All Builds\Claude Build\Winlock Project\src\AppGuardian.Agent\bin\Release\net8.0-windows10.0.19041.0\win-x64\AppGuardian.Agent.dll
+  AppGuardian.Tests -> D:\All Builds\Claude Build\Winlock Project\tests\AppGuardian.Tests\bin\Release\net8.0-windows\AppGuardian.Tests.dll
+  AppGuardian.UI -> D:\All Builds\Claude Build\Winlock Project\src\AppGuardian.UI\bin\Release\net8.0-windows10.0.19041.0\win-x64\AppGuardian.dll
+  AppGuardian.Tests -> D:\All Builds\Claude Build\Winlock Project\tests\AppGuardian.Tests\bin\Release\net8.0\AppGuardian.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:09.53

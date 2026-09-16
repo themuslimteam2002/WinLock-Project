@@ -1,0 +1,46 @@
+<!--
+    App.xaml — application-level resources only.
+
+    StartupUri is deliberately absent. The window is created by the host in App.xaml.cs after the
+    DI container is built, because MainWindow needs a ShellViewModel and ShellViewModel needs a
+    pipe client that has to be disposed on exit. Letting XAML construct the window first would
+    mean either a parameterless view model or a static service locator, and both put the
+    dashboard's only route to the service outside the container.
+
+    Dictionary order is load-bearing, and the palette must be FIRST: ThemeService replaces index 0 at
+    runtime to switch light/dark, and it identifies the slot by looking for a palette key before
+    touching it. Everything after it is ordered by what references what, because a StaticResource can
+    only see keys declared before it:
+
+      0  Palette.Dark   colour only, and the slot ThemeService swaps
+      1  Metrics        spacing, radius and duration tokens; references nothing
+      2  Icons          vector geometry; references nothing
+      3  Animations     storyboards and easing; references nothing
+      4  Theme          styles and control templates; references all four above
+      5  PageTemplates  data templates; references Theme's styles
+
+    Adding a dictionary above Palette.Dark would silently break the theme switch. ThemeService guards
+    against it — it checks for the Surface.Page marker key and inserts rather than overwrites if the
+    slot is wrong — but the guard logs a warning and leaves a duplicate palette merged, so the order
+    here is still the thing to get right.
+
+    Dark is the startup palette rather than the user's stored choice, because resources are merged
+    before the container exists and ThemeService cannot read settings.json this early. It applies the
+    real preference during startup, before the window is shown, so no flash is visible.
+-->
+<Application x:Class="AppGuardian.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Views/Palette.Dark.xaml" />
+        <ResourceDictionary Source="Views/Metrics.xaml" />
+        <ResourceDictionary Source="Views/Icons.xaml" />
+        <ResourceDictionary Source="Views/Animations.xaml" />
+        <ResourceDictionary Source="Views/Theme.xaml" />
+        <ResourceDictionary Source="Views/PageTemplates.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

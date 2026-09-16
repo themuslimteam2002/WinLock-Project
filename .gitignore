@@ -1,0 +1,10 @@
+﻿bin/
+obj/
+dist/
+.vs/
+*.user
+*.pdb
+node_modules/
+.next/
+out/
+build/

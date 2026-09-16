@@ -1,0 +1,83 @@
+<!--
+    EmptyState.xaml — the illustrated empty state.
+
+    A 56px tinted badge holding a 24px glyph, a headline, one wrapped sentence, and one primary
+    button. The four lists in this app all reach empty by different routes — nothing added yet,
+    nothing locked yet, the agent not running, a filter matching nothing — so the words and the
+    action are properties rather than content baked in here.
+
+    The badge is 56px and the glyph inside it stays 24. Icons.xaml explains why: WPF strokes a shape
+    with a pen measured in final device units, so a 24px glyph stretched to 56 keeps its 1.5px stroke
+    and arrives looking hairline next to every other icon on the page. Weight comes from the badge
+    around it, not from scaling the glyph.
+
+    Every binding here goes through ElementName=Root. A UserControl inherits its DataContext from
+    wherever it is placed, so a plain {Binding Headline} inside this file would resolve against the
+    page's view model instead of against this control.
+
+    Usage:
+
+      <controls:EmptyState Icon="{StaticResource Icon.Apps}"
+                           Headline="Nothing is protected yet"
+                           Body="Add an app to lock it behind Windows Hello or your PIN."
+                           ActionText="Choose an app"
+                           ActionCommand="{Binding AddCommand}"
+                           Visibility="{Binding HasApps, Converter={StaticResource BoolToCollapsed}}" />
+
+    The Visibility binding belongs at the use site, not here: this control does not know what makes
+    its list empty, and a page that shows a skeleton while loading needs the empty state to stay
+    hidden even though the list is, at that moment, genuinely empty.
+-->
+<UserControl x:Class="AppGuardian.UI.Controls.EmptyState"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+
+  <StackPanel Margin="{StaticResource Pad.XL}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+
+    <!--
+        Collapsed when no icon is set, rather than left as an empty tinted circle — which reads as an
+        image that failed to load. The trigger needs a local style, because EmptyState.Badge is shared
+        with anything else that wants the same badge and must not carry this control's logic.
+    -->
+    <Border>
+      <Border.Style>
+        <Style TargetType="Border" BasedOn="{StaticResource EmptyState.Badge}">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding ElementName=Root, Path=Icon}" Value="{x:Null}">
+              <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
+
+      <Path Style="{StaticResource Icon.Accent}"
+            Data="{Binding ElementName=Root, Path=Icon}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center" />
+    </Border>
+
+    <TextBlock Style="{StaticResource EmptyState.Title}"
+               Text="{Binding ElementName=Root, Path=Headline}" />
+
+    <TextBlock Style="{StaticResource EmptyState.Text}"
+               Text="{Binding ElementName=Root, Path=Body}" />
+
+    <!--
+        Visibility follows ActionText, not ActionCommand. A state with no action leaves the label
+        empty and the button disappears; a state whose command is not ready yet keeps the label, and
+        the button disables itself through CanExecute instead of vanishing and re-appearing.
+    -->
+    <Button Style="{StaticResource Button.Primary}"
+            Content="{Binding ElementName=Root, Path=ActionText}"
+            Command="{Binding ElementName=Root, Path=ActionCommand}"
+            CommandParameter="{Binding ElementName=Root, Path=ActionCommandParameter}"
+            Visibility="{Binding ElementName=Root, Path=ActionText,
+                                 Converter={StaticResource TextToVisible}}"
+            HorizontalAlignment="Center"
+            Margin="{StaticResource Space.Stack.L}" />
+  </StackPanel>
+</UserControl>

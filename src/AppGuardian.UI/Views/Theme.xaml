@@ -1,0 +1,2279 @@
+<!--
+    Theme.xaml — the dashboard's visual language: converters, typography, and control styles.
+
+    A single dictionary rather than per-view styles, because the same six or seven surfaces
+    (page, card, heading, body, muted, danger) recur on every page and having each view
+    invent its own would leave the app looking like six separate products.
+
+    Colour is NOT here. It lives in Palette.Dark.xaml and Palette.Light.xaml, one of which is merged
+    at index PaletteSlot by ThemeService. Every reference below to a palette key therefore uses
+    DynamicResource, not StaticResource: a StaticResource is resolved once when this dictionary loads
+    and would hold the old brush after a swap, so the app would need a restart to change theme.
+    Structural keys — styles, fonts, converters — stay StaticResource, since they never change and
+    BasedOn cannot take a DynamicResource at all.
+
+    Spacing and radius are not here either; they are tokens in Metrics.xaml, merged before this file.
+    Nothing below writes a literal margin, padding or corner radius except where a number is part of a
+    control's construction rather than part of the layout — the 18px checkbox box and the 38px switch
+    track are the control, not spacing around it, and naming them would only hide them.
+
+    Interaction states are animated, and they are animated with Trigger.EnterActions and
+    Trigger.ExitActions rather than with VisualStateManager. That is not a preference. WPF's
+    ButtonBase, ToggleButton and TextBoxBase never call VisualStateManager.GoToState — VSM state
+    changes are driven by the control in WinUI and Silverlight, but in WPF a VisualStateGroup named
+    CommonStates on a Button is inert markup that nothing will ever trigger. Property triggers are the
+    mechanism that actually works here.
+
+    Two rules those animations follow, both learned the hard way:
+
+      Never animate a brush from the palette. Palette brushes are shared and frozen; animating
+      Background.Color on one either throws or recolours every control using it. Every state layer
+      below is a separate Border with its own brush whose *Opacity* is animated instead. Opacity
+      composites on the GPU and cannot corrupt shared state.
+
+      Every EnterActions has a matching ExitActions. A storyboard holds its end value by default, so a
+      one-way animation leaves the property locked at the animated value and the control never returns
+      to rest.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="clr-namespace:AppGuardian.UI.Views">
+
+  <!-- Converters, declared once. A converter created per view is a converter per view to keep in step. -->
+  <views:InverseBooleanConverter x:Key="InverseBoolean" />
+  <views:BooleanToVisibilityConverter x:Key="BoolToVisible" />
+  <views:BooleanToVisibilityConverter x:Key="BoolToCollapsed" Invert="True" />
+  <views:StringToVisibilityConverter x:Key="TextToVisible" />
+  <views:StringToVisibilityConverter x:Key="NoTextToVisible" Invert="True" />
+  <views:Base64ImageConverter x:Key="Base64Image" />
+  <views:EnumEqualityConverter x:Key="EnumEquals" />
+  <views:NullableEnumEqualityConverter x:Key="NullableEnumEquals" />
+  <views:FallbackTextConverter x:Key="FallbackText" />
+  <views:IntAtLeastConverter x:Key="IntAtLeast" />
+
+  <!-- ==================================================================
+       Typography
+       ================================================================== -->
+
+  <!-- Segoe UI Variable where present, falling back to Segoe UI on Windows 10. -->
+  <FontFamily x:Key="Font.Ui">Segoe UI Variable Text, Segoe UI</FontFamily>
+  <FontFamily x:Key="Font.Display">Segoe UI Variable Display, Segoe UI Semibold, Segoe UI</FontFamily>
+
+  <Style x:Key="Text.Body" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <!-- Wrapping by default. Nearly every string in this app is a sentence, not a label. -->
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style x:Key="Text.Small" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Muted}" />
+  </Style>
+
+  <!--
+      11px, and the only thing allowed to use it is a caption that sits under something it describes.
+      It exists because three views had reached for an inline FontSize="11" to get here, which put a
+      type decision in a layout file where nobody would find it again.
+  -->
+  <Style x:Key="Text.Caption" TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <Style x:Key="Text.Heading" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontSize" Value="20" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style x:Key="Text.Subheading" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!--
+      The largest type in the app, used on exactly one screen: the first onboarding step. A display
+      size that appears on every page stops being emphasis and becomes noise, and a utility with a
+      26px heading on its settings page looks like a landing page.
+  -->
+  <Style x:Key="Text.Display" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontSize" Value="26" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LineHeight" Value="32" />
+  </Style>
+
+  <!-- An emphasised body line: a field label, or the lead-in to a paragraph. -->
+  <Style x:Key="Text.Label" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Body}" />
+
+  <!-- ==================================================================
+       Surfaces
+       ================================================================== -->
+
+  <Style x:Key="Card" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Surface.Card}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="Padding" Value="{StaticResource Pad.L}" />
+  </Style>
+
+  <!--
+      A card that holds a list. Padding zero so rows reach the card's edge, which is what makes a row's
+      hover fill read as part of the card rather than as a floating stripe inside it.
+  -->
+  <Style x:Key="Card.Flush" TargetType="Border" BasedOn="{StaticResource Card}">
+    <Setter Property="Padding" Value="{StaticResource Space.None}" />
+  </Style>
+
+  <!--
+      The one card in the app that casts a shadow, used for the onboarding wizard. Setup is a modal
+      moment — nothing else is reachable while it is on screen — and lifting it off the page is how that
+      gets said without a dialog frame.
+
+      The effect is a plain Setter and is never animated. A Freezable set from a style setter is shared
+      by every control the style touches, so animating it would either throw or animate all of them at
+      once. Note also that there is no Card.Interactive here: the cards in this app are containers, not
+      controls, and giving them a hover state would promise a click that does not exist. Hover belongs
+      to the two things that are genuinely interactive, buttons and list rows, and both have it below.
+  -->
+  <Style x:Key="Card.Elevated" TargetType="Border" BasedOn="{StaticResource Card}">
+    <Setter Property="Effect">
+      <Setter.Value>
+        <DropShadowEffect Color="{DynamicResource Shadow.Color}"
+                          BlurRadius="28"
+                          ShadowDepth="6"
+                          Direction="270"
+                          Opacity="0.28" />
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Icon paths. Stroked, never filled: the geometry in Icons.xaml is drawn as outlines, and a fill on
+      an open figure closes it into a blob.
+
+      1.5 at 24px is the weight that matches a 13px Segoe UI stem. Round caps and joins on every glyph,
+      because a mitred join on a 1.5px stroke produces a visible spike at the shield's point.
+  -->
+  <Style x:Key="Icon" TargetType="Path">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Stroke" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeStartLineCap" Value="Round" />
+    <Setter Property="StrokeEndLineCap" Value="Round" />
+    <Setter Property="StrokeLineJoin" Value="Round" />
+    <Setter Property="Fill" Value="{x:Null}" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+
+  <Style x:Key="Icon.Accent" TargetType="Path" BasedOn="{StaticResource Icon}">
+    <Setter Property="Stroke" Value="{DynamicResource Accent}" />
+  </Style>
+
+  <Style x:Key="Icon.Muted" TargetType="Path" BasedOn="{StaticResource Icon}">
+    <Setter Property="Stroke" Value="{DynamicResource Text.Muted}" />
+  </Style>
+
+  <!-- 16px for an icon sitting inline with a line of text rather than standing on its own. -->
+  <Style x:Key="Icon.Inline" TargetType="Path" BasedOn="{StaticResource Icon}">
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="StrokeThickness" Value="1.6" />
+  </Style>
+
+  <!-- ==================================================================
+       Buttons — one template, four styles
+       ================================================================== -->
+
+  <!--
+      There used to be four near-identical copies of this template, one per button style, differing only
+      in which brushes their triggers reached for. They had already drifted: Button.Quiet rounded to 4
+      while the others rounded to 6, and Button.Primary showed Accent.Pressed for hover *and* for
+      pressed, so clicking the app's most important button produced no visible change.
+
+      Now there is one template. What differs between the styles is carried on the control itself, as
+      the four attached brushes in Interaction.cs, and read back inside the template with a binding to
+      the templated parent. See that file for why an attached property rather than Tag, and why a full
+      Binding rather than a TemplateBinding.
+
+      Layering, back to front: Chrome is the resting surface; Hover and Press are opaque state fills
+      that cross-fade over it; Focus is a two-ring keyboard indicator; the label sits on top. Only
+      Opacity is animated, never a brush — see the file header.
+
+      The 2% squeeze on press is the one piece of motion here that is meant to be *felt* rather than
+      seen. It is applied to the whole template root, so the label moves with the surface; scaling only
+      the chrome makes the text appear to float free of the button.
+  -->
+  <ControlTemplate x:Key="Template.Button" TargetType="ButtonBase">
+    <Grid x:Name="Root" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+      <Grid.RenderTransform>
+        <ScaleTransform x:Name="Squeeze" />
+      </Grid.RenderTransform>
+
+      <Border x:Name="Chrome"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{StaticResource Radius.Control}"
+              SnapsToDevicePixels="True" />
+
+      <Border x:Name="Hover"
+              Background="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                   Path=(views:Interaction.HoverBrush)}"
+              BorderBrush="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                    Path=(views:Interaction.HoverBorderBrush)}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{StaticResource Radius.Control}"
+              Opacity="0"
+              SnapsToDevicePixels="True" />
+
+      <Border x:Name="Press"
+              Background="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                   Path=(views:Interaction.PressedBrush)}"
+              CornerRadius="{StaticResource Radius.Control}"
+              Opacity="0"
+              SnapsToDevicePixels="True" />
+
+      <!--
+          Two rings, drawn inside the control rather than outside it. An outset glow would overflow the
+          button's layout slot and be clipped wherever a button sits flush against a card edge, which is
+          most of them. The inner ring is the translucent accent, so the indicator survives on a filled
+          accent button where a single accent ring would be invisible.
+      -->
+      <Border x:Name="Focus"
+              BorderBrush="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                    Path=(views:Interaction.FocusBrush)}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource Radius.Control}"
+              Opacity="0"
+              SnapsToDevicePixels="True">
+        <Border BorderBrush="{DynamicResource Accent.Glow}"
+                BorderThickness="1"
+                CornerRadius="{StaticResource Radius.Small}" />
+      </Border>
+
+      <ContentPresenter x:Name="Label"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Margin="{TemplateBinding Padding}"
+                        RecognizesAccessKey="True" />
+    </Grid>
+
+    <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Trigger.EnterActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Hover"
+                               Storyboard.TargetProperty="Opacity"
+                               To="1"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseOut}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Hover"
+                               Storyboard.TargetProperty="Opacity"
+                               To="0"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseIn}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.ExitActions>
+      </Trigger>
+
+      <Trigger Property="IsPressed" Value="True">
+        <Trigger.EnterActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Press"
+                               Storyboard.TargetProperty="Opacity"
+                               To="1"
+                               Duration="{StaticResource Motion.Press}" />
+              <DoubleAnimation Storyboard.TargetName="Squeeze"
+                               Storyboard.TargetProperty="ScaleX"
+                               To="0.98"
+                               Duration="{StaticResource Motion.Press}"
+                               EasingFunction="{StaticResource EaseOut}" />
+              <DoubleAnimation Storyboard.TargetName="Squeeze"
+                               Storyboard.TargetProperty="ScaleY"
+                               To="0.98"
+                               Duration="{StaticResource Motion.Press}"
+                               EasingFunction="{StaticResource EaseOut}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Press"
+                               Storyboard.TargetProperty="Opacity"
+                               To="0"
+                               Duration="{StaticResource Motion.Hover}" />
+              <DoubleAnimation Storyboard.TargetName="Squeeze"
+                               Storyboard.TargetProperty="ScaleX"
+                               To="1"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseOut}" />
+              <DoubleAnimation Storyboard.TargetName="Squeeze"
+                               Storyboard.TargetProperty="ScaleY"
+                               To="1"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseOut}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.ExitActions>
+      </Trigger>
+
+      <Trigger Property="IsKeyboardFocused" Value="True">
+        <Trigger.EnterActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Focus"
+                               Storyboard.TargetProperty="Opacity"
+                               To="1"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseOut}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Focus"
+                               Storyboard.TargetProperty="Opacity"
+                               To="0"
+                               Duration="{StaticResource Motion.Press}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.ExitActions>
+      </Trigger>
+
+      <!--
+          Disabled dims the whole root, label included. Dimming only the chrome — which is what this
+          template used to do — leaves a full-strength label on a faded surface, and the button reads
+          as available.
+      -->
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+        <Setter Property="Cursor" Value="Arrow" />
+      </Trigger>
+    </ControlTemplate.Triggers>
+  </ControlTemplate>
+
+  <!--
+      The four styles below set colour, metrics and the four attached brushes. None of them touches
+      the template, and none of them declares a trigger: every interaction state is in Template.Button.
+      That is the whole point of the refactor — adding a fifth button style is now a colour decision,
+      not a copy of 160 lines of storyboards.
+
+      FocusVisualStyle is null on all four. WPF's default focus visual is a dotted rectangle drawn in
+      the adorner layer, and leaving it on would stack a dotted outline on top of the ring the template
+      already draws.
+  -->
+  <Style x:Key="Button.Base" TargetType="ButtonBase">
+    <Setter Property="Template" Value="{StaticResource Template.Button}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Input}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Control}" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="MinWidth" Value="88" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="views:Interaction.HoverBrush" Value="{DynamicResource Surface.Hover}" />
+    <Setter Property="views:Interaction.HoverBorderBrush" Value="{DynamicResource Accent.Soft}" />
+    <Setter Property="views:Interaction.PressedBrush" Value="{DynamicResource Surface.Selected}" />
+    <Setter Property="views:Interaction.FocusBrush" Value="{DynamicResource Accent}" />
+  </Style>
+
+  <!-- Every plain Button in the app, without a Style attribute, gets the secondary treatment. -->
+  <Style TargetType="Button" BasedOn="{StaticResource Button.Base}" />
+
+  <!--
+      The primary action. One per screen — the moment two buttons on a page are both filled accent,
+      neither is primary any more.
+
+      Hover is Accent.Hover (lighter) and press is Accent.Pressed (darker), which is the pair the old
+      template got wrong by using Accent.Pressed for both. The focus ring is drawn in Text.Primary
+      rather than Accent, because an accent ring on an accent fill is invisible.
+  -->
+  <Style x:Key="Button.Primary" TargetType="ButtonBase" BasedOn="{StaticResource Button.Base}">
+    <Setter Property="Background" Value="{DynamicResource Accent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="views:Interaction.HoverBrush" Value="{DynamicResource Accent.Hover}" />
+    <Setter Property="views:Interaction.HoverBorderBrush" Value="{DynamicResource Accent.Hover}" />
+    <Setter Property="views:Interaction.PressedBrush" Value="{DynamicResource Accent.Pressed}" />
+    <Setter Property="views:Interaction.FocusBrush" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <!--
+      Destructive actions: outlined rather than filled. A filled red button is the loudest thing on a
+      page, and the two places this appears — forgetting a PIN, removing a rule — are not the action we
+      want the eye drawn to first.
+
+      Hover fills with the neutral Surface.Hover rather than a red wash. There is no red-tinted surface
+      token in the palette, and adding one for two buttons would mean a new key in both palettes for a
+      state the red border already communicates.
+  -->
+  <Style x:Key="Button.Danger" TargetType="ButtonBase" BasedOn="{StaticResource Button.Base}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Bad}" />
+    <Setter Property="Foreground" Value="{DynamicResource State.Bad}" />
+    <Setter Property="views:Interaction.HoverBrush" Value="{DynamicResource Surface.Hover}" />
+    <Setter Property="views:Interaction.HoverBorderBrush" Value="{DynamicResource State.Bad}" />
+    <Setter Property="views:Interaction.PressedBrush" Value="{DynamicResource Surface.Selected}" />
+    <Setter Property="views:Interaction.FocusBrush" Value="{DynamicResource State.Bad}" />
+  </Style>
+
+  <!--
+      A text button: no fill, no border, accent label. Used for navigation in the sidebar, for "Open
+      Windows Settings" links, and for the toast's dismiss control.
+
+      Its corner radius is no longer 4. It shares Template.Button with the other three, so it rounds to
+      Radius.Control like everything else — the old 4 was the single most visible inconsistency in the
+      app, because the sidebar's eight nav buttons sat directly beside cards that rounded to 8.
+
+      HoverBorderBrush is deliberately Transparent, not Accent.Soft. Accent.Soft is translucent, and a
+      translucent border drawn over a fill of the same translucent brush composites twice, leaving a
+      visibly darker 1px rim around the hover state.
+
+      MinWidth drops to 0 because these are inline controls sized by their text, and MinHeight to 28 —
+      the nav list is eight of these stacked, and 32 each makes the sidebar taller than the content.
+  -->
+  <Style x:Key="Button.Quiet" TargetType="ButtonBase" BasedOn="{StaticResource Button.Base}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Control.Small}" />
+    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="views:Interaction.HoverBrush" Value="{DynamicResource Accent.Soft}" />
+    <Setter Property="views:Interaction.HoverBorderBrush" Value="Transparent" />
+    <Setter Property="views:Interaction.PressedBrush" Value="{DynamicResource Surface.Selected}" />
+    <Setter Property="views:Interaction.FocusBrush" Value="{DynamicResource Accent}" />
+  </Style>
+
+  <!-- ==================================================================
+       Text inputs — one template for TextBox and PasswordBox
+       ================================================================== -->
+
+  <!--
+      TargetType is Control, not TextBox, so the same template serves both TextBox and PasswordBox.
+      Everything it binds — Background, BorderBrush, Padding, VerticalContentAlignment — is declared on
+      Control, and the three triggers read IsMouseOver, IsKeyboardFocusWithin and IsEnabled, all of
+      which come from UIElement. Nothing here is text-box specific.
+
+      PART_ContentHost is a required part name, not a convention: TextBoxBase and PasswordBox both look
+      up that exact string when the template is applied and throw if it is missing or is not a
+      ScrollViewer or AdornerDecorator. It carries the Padding as a Margin so the caret sits inside the
+      padded box rather than against the border.
+
+      Focus uses IsKeyboardFocusWithin rather than IsFocused. The visible text lives in a child of the
+      ScrollViewer, so on a real click IsFocused on the outer control is not reliably true, and the ring
+      would flicker or never appear.
+  -->
+  <ControlTemplate x:Key="Template.Input" TargetType="Control">
+    <Grid>
+      <Border x:Name="Chrome"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{StaticResource Radius.Control}"
+              SnapsToDevicePixels="True" />
+
+      <Border x:Name="Hover"
+              BorderBrush="{DynamicResource Accent.Soft}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{StaticResource Radius.Control}"
+              Opacity="0"
+              SnapsToDevicePixels="True" />
+
+      <Border x:Name="Focus"
+              BorderBrush="{DynamicResource Accent}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{StaticResource Radius.Control}"
+              Opacity="0"
+              SnapsToDevicePixels="True">
+        <Border BorderBrush="{DynamicResource Accent.Glow}"
+                BorderThickness="1"
+                CornerRadius="{StaticResource Radius.Small}" />
+      </Border>
+
+      <ScrollViewer x:Name="PART_ContentHost"
+                    Margin="{TemplateBinding Padding}"
+                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                    Focusable="False"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollBarVisibility="Hidden" />
+    </Grid>
+
+    <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Trigger.EnterActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Hover"
+                               Storyboard.TargetProperty="Opacity"
+                               To="1"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseOut}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Hover"
+                               Storyboard.TargetProperty="Opacity"
+                               To="0"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseIn}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.ExitActions>
+      </Trigger>
+
+      <Trigger Property="IsKeyboardFocusWithin" Value="True">
+        <Trigger.EnterActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Focus"
+                               Storyboard.TargetProperty="Opacity"
+                               To="1"
+                               Duration="{StaticResource Motion.Hover}"
+                               EasingFunction="{StaticResource EaseOut}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Focus"
+                               Storyboard.TargetProperty="Opacity"
+                               To="0"
+                               Duration="{StaticResource Motion.Press}" />
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.ExitActions>
+      </Trigger>
+
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Chrome" Property="Opacity" Value="0.5" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Muted}" />
+      </Trigger>
+    </ControlTemplate.Triggers>
+  </ControlTemplate>
+
+  <!--
+      Keyed, and keyed on Control, purely so the two implicit styles below can share it. It is never
+      applied to anything directly — an implicit Control style would capture every Control in the app.
+
+      VerticalContentAlignment is Center because every input in this app is a single line: a search box,
+      a PIN, a process name. A multi-line box added later must override it back to Stretch, or its text
+      will sit vertically centred and scroll oddly. That is the one thing to remember about this style.
+  -->
+  <Style x:Key="Input.Base" TargetType="Control">
+    <Setter Property="Template" Value="{StaticResource Template.Input}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Input}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Input}" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+  </Style>
+
+  <!--
+      CaretBrush, SelectionBrush and SelectionOpacity are set here rather than in Input.Base because
+      they are declared separately on TextBoxBase and on PasswordBox — neither is on Control, so a
+      shared setter for them is not possible.
+
+      Without CaretBrush the caret is drawn in the system colour, which on the dark palette is a black
+      bar on a near-black field and effectively invisible.
+  -->
+  <Style TargetType="TextBox" BasedOn="{StaticResource Input.Base}">
+    <Setter Property="CaretBrush" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Accent}" />
+    <Setter Property="SelectionOpacity" Value="0.4" />
+  </Style>
+
+  <Style TargetType="PasswordBox" BasedOn="{StaticResource Input.Base}">
+    <Setter Property="CaretBrush" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Accent}" />
+    <Setter Property="SelectionOpacity" Value="0.4" />
+    <!-- A round dot rather than the default asterisk; it reads as a redacted character, not as text. -->
+    <Setter Property="PasswordChar" Value="●" />
+  </Style>
+
+  <!-- ==================================================================
+       Check boxes, switches and radio buttons
+       ================================================================== -->
+
+  <!--
+      A hand-drawn box rather than the system one. The stock WPF CheckBox renders a Win32-era bevel that
+      ignores the palette entirely, so on the dark theme it is a light grey square in the middle of a
+      dark card.
+
+      18px is the box, not spacing, which is why the number is here and not in Metrics.xaml — see the
+      file header. The label is top-aligned with a 1px nudge on the box so that a wrapping label lines up
+      with the box on its *first* line; centring a three-line label would float the box in the middle of
+      the paragraph.
+
+      The tick is Icon.Check, stretched to fill a 12px inset rather than sized to 18 with a margin, since
+      a Path's Width plus Margin adds up and would overflow the 18px cell.
+  -->
+  <Style TargetType="CheckBox">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Grid x:Name="Root" Background="Transparent">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Width="18" Height="18" VerticalAlignment="Top" Margin="0,1,0,0">
+              <Border x:Name="Box"
+                      Background="{DynamicResource Surface.Input}"
+                      BorderBrush="{DynamicResource Border.Subtle}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Small}"
+                      SnapsToDevicePixels="True" />
+
+              <!-- The accent fill carries its own border, so when it fades in it also covers Box's. -->
+              <Border x:Name="Fill"
+                      Background="{DynamicResource Accent}"
+                      BorderBrush="{DynamicResource Accent}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Small}"
+                      Opacity="0"
+                      SnapsToDevicePixels="True" />
+
+              <Border x:Name="HoverRing"
+                      BorderBrush="{DynamicResource Accent.Soft}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Small}"
+                      Opacity="0"
+                      SnapsToDevicePixels="True" />
+
+              <Border x:Name="FocusRing"
+                      BorderBrush="{DynamicResource Accent}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Small}"
+                      Opacity="0"
+                      SnapsToDevicePixels="True" />
+
+              <Path x:Name="Tick"
+                    Data="{StaticResource Icon.Check}"
+                    Stretch="Uniform"
+                    Margin="3"
+                    Stroke="{DynamicResource Text.OnAccent}"
+                    StrokeThickness="2"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round"
+                    StrokeLineJoin="Round"
+                    Fill="{x:Null}"
+                    Opacity="0"
+                    RenderTransformOrigin="0.5,0.5">
+                <Path.RenderTransform>
+                  <ScaleTransform x:Name="TickScale" ScaleX="0.6" ScaleY="0.6" />
+                </Path.RenderTransform>
+              </Path>
+
+              <!-- Nothing in the app is three-state today, but rendering the dash is cheaper than
+                   letting an indeterminate box masquerade as an unchecked one.
+
+                   A Border rather than Icon.Dash: that geometry is a horizontal line, so its bounds
+                   have zero height, and Stretch="Uniform" on a degenerate axis is not well defined. A
+                   10x2 rounded rectangle is the same mark with no such question. -->
+              <Border x:Name="Dash"
+                      Width="10"
+                      Height="2"
+                      CornerRadius="1"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Background="{DynamicResource Text.OnAccent}"
+                      Opacity="0" />
+            </Grid>
+
+            <ContentPresenter Grid.Column="1"
+                              Margin="{StaticResource Space.Inline.S}"
+                              VerticalAlignment="Top"
+                              RecognizesAccessKey="True" />
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Fill"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="Tick"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="TickScale"
+                                     Storyboard.TargetProperty="ScaleX"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="TickScale"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Fill"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="Tick"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="TickScale"
+                                     Storyboard.TargetProperty="ScaleX"
+                                     To="0.6"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="TickScale"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     To="0.6"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsChecked" Value="{x:Null}">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Fill"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="Dash"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Fill"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="Dash"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="HoverRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="HoverRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="FocusRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="FocusRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      A real switch, for settings that take effect the moment they are flipped. The rule for choosing
+      between this and a check box: a check box is a value you are editing and will later save, a switch
+      is a state you are changing now. Everything in Settings that writes through immediately is a
+      switch; anything inside a form that has a confirm button stays a check box.
+
+      BasedOn the implicit CheckBox style, so font, cursor and focus-visual decisions live in one place
+      and this style only replaces the template.
+
+      The geometry: a 38x18 track, a 14px thumb inset 2px, giving exactly 20px of travel. Height 18
+      rather than 20 so that Radius.Switch (9) is a true pill — at height 20 a radius of 9 leaves a 1px
+      flat on the top and bottom edges of each cap.
+
+      Two thumbs, cross-faded, rather than one whose brush changes: the thumb has to be light against the
+      dark unchecked track and dark against the accent checked track, and a palette brush cannot be
+      animated (see the file header). ThumbOff is Text.Muted, ThumbOn is Text.OnAccent, and both read
+      correctly in both palettes.
+  -->
+  <Style x:Key="Toggle" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Grid x:Name="Root" Background="Transparent">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Width="38" Height="18" VerticalAlignment="Top" Margin="0,1,0,0">
+              <Border x:Name="Track"
+                      Background="{DynamicResource Surface.Input}"
+                      BorderBrush="{DynamicResource Border.Subtle}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Switch}"
+                      SnapsToDevicePixels="True" />
+
+              <Border x:Name="TrackOn"
+                      Background="{DynamicResource Accent}"
+                      BorderBrush="{DynamicResource Accent}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Switch}"
+                      Opacity="0"
+                      SnapsToDevicePixels="True" />
+
+              <Border x:Name="HoverRing"
+                      BorderBrush="{DynamicResource Accent.Soft}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Switch}"
+                      Opacity="0"
+                      SnapsToDevicePixels="True" />
+
+              <Border x:Name="FocusRing"
+                      BorderBrush="{DynamicResource Accent}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Switch}"
+                      Opacity="0"
+                      SnapsToDevicePixels="True" />
+
+              <Grid Width="14"
+                    Height="14"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Margin="2,0,0,0">
+                <Grid.RenderTransform>
+                  <TranslateTransform x:Name="ThumbSlide" />
+                </Grid.RenderTransform>
+                <Border x:Name="ThumbOff"
+                        Background="{DynamicResource Text.Muted}"
+                        CornerRadius="7" />
+                <Border x:Name="ThumbOn"
+                        Background="{DynamicResource Text.OnAccent}"
+                        CornerRadius="7"
+                        Opacity="0" />
+              </Grid>
+            </Grid>
+
+            <ContentPresenter Grid.Column="1"
+                              Margin="{StaticResource Space.Inline.S}"
+                              VerticalAlignment="Top"
+                              RecognizesAccessKey="True" />
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="ThumbSlide"
+                                     Storyboard.TargetProperty="X"
+                                     To="20"
+                                     Duration="{StaticResource Motion.Base}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="TrackOn"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="ThumbOn"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}" />
+                    <DoubleAnimation Storyboard.TargetName="ThumbOff"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="ThumbSlide"
+                                     Storyboard.TargetProperty="X"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Base}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="TrackOn"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                    <DoubleAnimation Storyboard.TargetName="ThumbOn"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}" />
+                    <DoubleAnimation Storyboard.TargetName="ThumbOff"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="HoverRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="HoverRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="FocusRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="FocusRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Radio buttons, for the power-profile choice — the one place in the app with a genuinely exclusive
+      set of options. Same 18px footprint and same top-aligned label as the check box, so a group of
+      radios and a group of check boxes on the same page share a left edge and a baseline.
+
+      The setters are repeated rather than shared with the CheckBox style: RadioButton and CheckBox are
+      siblings under ToggleButton, so neither can be BasedOn the other.
+  -->
+  <Style TargetType="RadioButton">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Grid x:Name="Root" Background="Transparent">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Width="18" Height="18" VerticalAlignment="Top" Margin="0,1,0,0">
+              <Ellipse x:Name="Ring"
+                       Fill="{DynamicResource Surface.Input}"
+                       Stroke="{DynamicResource Border.Subtle}"
+                       StrokeThickness="1" />
+
+              <Ellipse x:Name="RingOn"
+                       Stroke="{DynamicResource Accent}"
+                       StrokeThickness="1"
+                       Opacity="0" />
+
+              <Ellipse x:Name="HoverRing"
+                       Stroke="{DynamicResource Accent.Soft}"
+                       StrokeThickness="1"
+                       Opacity="0" />
+
+              <Ellipse x:Name="FocusRing"
+                       Stroke="{DynamicResource Accent}"
+                       StrokeThickness="1"
+                       Opacity="0" />
+
+              <Ellipse x:Name="Dot"
+                       Width="8"
+                       Height="8"
+                       Fill="{DynamicResource Accent}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Opacity="0"
+                       RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform>
+                  <ScaleTransform x:Name="DotScale" ScaleX="0" ScaleY="0" />
+                </Ellipse.RenderTransform>
+              </Ellipse>
+            </Grid>
+
+            <ContentPresenter Grid.Column="1"
+                              Margin="{StaticResource Space.Inline.S}"
+                              VerticalAlignment="Top"
+                              RecognizesAccessKey="True" />
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="RingOn"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="Dot"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="DotScale"
+                                     Storyboard.TargetProperty="ScaleX"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="DotScale"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="RingOn"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="Dot"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="DotScale"
+                                     Storyboard.TargetProperty="ScaleX"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                    <DoubleAnimation Storyboard.TargetName="DotScale"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="HoverRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="HoverRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="FocusRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="FocusRing"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ==================================================================
+       Combo box
+       ================================================================== -->
+
+  <!--
+      Popup rows. These use plain Setters rather than storyboards, unlike everything else in this file.
+      A drop-down is transient — it appears already open, the pointer crosses several rows on its way to
+      the target, and fading each one in and out turns a decisive list into a smear. Cost matters too:
+      the app list combo can hold a few hundred items.
+
+      IsHighlighted rather than IsMouseOver, because ComboBoxItem raises it for both the pointer and the
+      arrow keys, so keyboard navigation gets the same highlight the mouse does. IsMouseOver alone leaves
+      keyboard users with no indication of where they are in the list.
+  -->
+  <Style TargetType="ComboBoxItem">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Row}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBoxItem">
+          <Grid Background="Transparent">
+            <Border x:Name="Fill"
+                    Background="{DynamicResource Surface.Hover}"
+                    CornerRadius="{StaticResource Radius.Small}"
+                    Opacity="0"
+                    SnapsToDevicePixels="True" />
+            <ContentPresenter Margin="{TemplateBinding Padding}"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Stretch" />
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Fill" Property="Opacity" Value="1" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Fill" Property="Opacity" Value="1" />
+              <Setter TargetName="Fill" Property="Background" Value="{DynamicResource Surface.Selected}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Written out in full because the stock ComboBox template is unusable here: it draws a system-themed
+      chrome and a Win32 arrow glyph that ignore the palette entirely, and it cannot be recoloured from
+      the outside.
+
+      Two part names are load-bearing. PART_Popup is looked up by ComboBox itself, and PART_EditableTextBox
+      would be too if any combo in this app were editable — none is, so it is deliberately absent.
+
+      The layering is unusual and worth reading before changing: all the visual state lives in *this*
+      template, and the ToggleButton on top is given an empty transparent template. The obvious
+      arrangement — visuals inside the ToggleButton — puts them in the ToggleButton's namescope, where
+      this template's triggers cannot reach them, so the ComboBox's own focus and hover state could not
+      drive them. Here the ToggleButton is nothing but a hit target and the drop-down latch.
+
+      Consequently the ContentPresenter and the chevron sit *above* the ToggleButton in z-order and both
+      set IsHitTestVisible="False", or they would swallow the clicks meant for it.
+  -->
+  <Style TargetType="ComboBox">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Input}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Input}" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="MaxDropDownHeight" Value="280" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBox">
+          <Grid x:Name="Root">
+            <Border x:Name="Chrome"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{StaticResource Radius.Control}"
+                    SnapsToDevicePixels="True" />
+
+            <Border x:Name="Hover"
+                    BorderBrush="{DynamicResource Accent.Soft}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{StaticResource Radius.Control}"
+                    Opacity="0"
+                    SnapsToDevicePixels="True" />
+
+            <Border x:Name="Focus"
+                    BorderBrush="{DynamicResource Accent}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{StaticResource Radius.Control}"
+                    Opacity="0"
+                    SnapsToDevicePixels="True">
+              <Border BorderBrush="{DynamicResource Accent.Glow}"
+                      BorderThickness="1"
+                      CornerRadius="{StaticResource Radius.Small}" />
+            </Border>
+
+            <ToggleButton Focusable="False"
+                          ClickMode="Press"
+                          IsTabStop="False"
+                          IsChecked="{Binding IsDropDownOpen,
+                                              Mode=TwoWay,
+                                              RelativeSource={RelativeSource TemplatedParent}}">
+              <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                  <Border Background="Transparent" />
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+
+            <ContentPresenter Margin="{TemplateBinding Padding}"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Center"
+                              IsHitTestVisible="False"
+                              Content="{TemplateBinding SelectionBoxItem}"
+                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+
+            <Path x:Name="Chevron"
+                  Style="{StaticResource Icon.Inline}"
+                  Data="{StaticResource Icon.Chevron}"
+                  Stroke="{DynamicResource Text.Muted}"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center"
+                  Margin="{StaticResource Pad.Control}"
+                  IsHitTestVisible="False"
+                  RenderTransformOrigin="0.5,0.5">
+              <Path.RenderTransform>
+                <RotateTransform x:Name="ChevronSpin" />
+              </Path.RenderTransform>
+            </Path>
+
+            <Popup x:Name="PART_Popup"
+                   AllowsTransparency="True"
+                   Focusable="False"
+                   Placement="Bottom"
+                   VerticalOffset="4"
+                   PopupAnimation="Fade"
+                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}">
+              <!--
+                  Card, not Card.Elevated. A DropShadowEffect inside a Popup is clipped by the popup's
+                  own window bounds — an effect is not layout, so nothing reserves room for it — and the
+                  usual fix, a margin plus a compensating HorizontalOffset, misaligns the drop-down
+                  against the field it belongs to. The hairline border carries the separation instead,
+                  and the wizard keeps its status as the only shadow in the app.
+              -->
+              <Border x:Name="DropDown"
+                      Style="{StaticResource Card}"
+                      Padding="{StaticResource Pad.XS}"
+                      MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                <ScrollViewer CanContentScroll="True"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                  <ItemsPresenter />
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Hover"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Hover"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Focus"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Focus"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <!-- The chevron turns over as the list opens: the only rotation in the app, and it is
+                 doing real work — it says which way the control will go if you click again. -->
+            <Trigger Property="IsDropDownOpen" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="ChevronSpin"
+                                     Storyboard.TargetProperty="Angle"
+                                     To="180"
+                                     Duration="{StaticResource Motion.Base}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="ChevronSpin"
+                                     Storyboard.TargetProperty="Angle"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Base}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <!-- An empty drop-down would otherwise open as a 2px sliver of border. -->
+            <Trigger Property="HasItems" Value="False">
+              <Setter TargetName="DropDown" Property="MinHeight" Value="36" />
+            </Trigger>
+
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ==================================================================
+       Dividers and list rows
+       ================================================================== -->
+
+  <!--
+      A hairline, and the margin is part of it. A divider whose spacing is set at each use site drifts
+      immediately — Space.Divider is symmetrical (16 above, 16 below) because a rule that sits closer to
+      one side reads as belonging to that side rather than separating the two.
+  -->
+  <Style TargetType="Separator">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="{StaticResource Space.Divider}" />
+    <Setter Property="Background" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Separator">
+          <Border Background="{TemplateBinding Background}" SnapsToDevicePixels="True" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      List rows: the second of the two things in this app that are genuinely interactive, and the only
+      place besides buttons with a hover state.
+
+      The selection marker used to be a BorderThickness="3,0,0,0" on the row's own border, which meant
+      selecting a row shifted its content 3px to the right — every label in the list jogged sideways as
+      the user arrowed down it. It is now a separate 3px Border that is always in the tree and always
+      3px wide, scaled on Y from 0 to 1, so it wipes into place from the row's centre and nothing
+      reflows.
+
+      Padding lives on the ContentPresenter via Pad.Row, so the hover and selected fills reach the full
+      width of the row — a fill inset by the padding reads as a floating chip rather than a selected row.
+  -->
+  <Style x:Key="Row" TargetType="ListBoxItem">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Row}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <Grid x:Name="Root" Background="Transparent">
+            <Border x:Name="Hover"
+                    Background="{DynamicResource Surface.Hover}"
+                    Opacity="0"
+                    SnapsToDevicePixels="True" />
+
+            <Border x:Name="Selected"
+                    Background="{DynamicResource Surface.Selected}"
+                    Opacity="0"
+                    SnapsToDevicePixels="True" />
+
+            <Border x:Name="Focus"
+                    BorderBrush="{DynamicResource Accent.Glow}"
+                    BorderThickness="1"
+                    Opacity="0"
+                    SnapsToDevicePixels="True" />
+
+            <Border x:Name="Marker"
+                    Width="3"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Stretch"
+                    Background="{DynamicResource Accent}"
+                    CornerRadius="0,2,2,0"
+                    RenderTransformOrigin="0.5,0.5">
+              <Border.RenderTransform>
+                <ScaleTransform x:Name="MarkerGrow" ScaleY="0" />
+              </Border.RenderTransform>
+            </Border>
+
+            <ContentPresenter Margin="{TemplateBinding Padding}"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Hover"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Hover"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsSelected" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Selected"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                    <DoubleAnimation Storyboard.TargetName="MarkerGrow"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Base}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Selected"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseIn}" />
+                    <DoubleAnimation Storyboard.TargetName="MarkerGrow"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <!--
+                Keyboard focus on a row is drawn as a full inset hairline rather than a left marker,
+                so a focused-but-unselected row is distinguishable from the selected one. Both can be
+                true at once and they stack without conflict.
+            -->
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Focus"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="{StaticResource Motion.Hover}"
+                                     EasingFunction="{StaticResource EaseOut}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Focus"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="0"
+                                     Duration="{StaticResource Motion.Press}" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Every ListBox in the app, without a Style attribute. Transparent and borderless, because the list
+      always sits inside a Card.Flush that is already providing the surface and the hairline — a second
+      border there would draw a box inside a box.
+
+      Recycling virtualisation, not the default Standard mode. The app list enumerates every installed
+      application, which on a developer machine is several hundred rows; Standard mode keeps a visual for
+      every item it has ever scrolled past, and Recycling reuses a fixed pool.
+
+      Known artifact, deliberately left: a row's hover fill is a square rectangle, so on the first and
+      last row it paints a couple of pixels outside the containing card's 8px corner. WPF's Border does
+      not clip its child to CornerRadius — ClipToBounds gives a rectangular clip, not a rounded one — and
+      the fixes all cost either a code-behind clip helper or a converter that reads ActualWidth. Not
+      worth either for two pixels that only appear while the pointer is on the end row.
+  -->
+  <Style TargetType="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Space.None}" />
+    <Setter Property="ItemContainerStyle" Value="{StaticResource Row}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+    <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBox">
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  SnapsToDevicePixels="True">
+            <ScrollViewer Focusable="False"
+                          Padding="{TemplateBinding Padding}"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+              <ItemsPresenter />
+            </ScrollViewer>
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ==================================================================
+       Banners and badges
+       ================================================================== -->
+
+  <!--
+      Banners now sit on Surface.Raised rather than Surface.Input. Surface.Input was doing triple duty —
+      inputs, banners, badges — and in the light palette it is #FFFFFF, the same colour as a card. Any
+      banner placed inside a card therefore had no background at all, which is exactly where the new
+      wizard and the new empty states put them. Surface.Raised is distinct from both the card and the
+      page in both palettes.
+
+      The three variants change only the border. A fully tinted banner background needs a tinted surface
+      token per state in both palettes, and a coloured hairline plus a coloured glyph already carries the
+      state without asking the reader to decode a wash.
+  -->
+  <Style x:Key="Banner" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Control}" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Banner}" />
+  </Style>
+
+  <Style x:Key="Banner.Info" TargetType="Border" BasedOn="{StaticResource Banner}">
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+  </Style>
+
+  <Style x:Key="Banner.Warning" TargetType="Border" BasedOn="{StaticResource Banner}">
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Warn}" />
+  </Style>
+
+  <Style x:Key="Banner.Error" TargetType="Border" BasedOn="{StaticResource Banner}">
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Bad}" />
+  </Style>
+
+  <!--
+      The whole point of this style: six views carry a byte-identical fifteen-line block that binds
+      Message, converts it to a Visibility, picks an icon and recolours itself on MessageIsError. All six
+      collapse to one line:
+
+        <ContentControl Style="{StaticResource PageBanner}" />
+
+      It is a ContentControl with an empty Content on purpose. It renders its *DataContext*, not its
+      content — the bindings inside the template resolve against the page view model that the control
+      inherits, so nothing has to be passed in and nothing has to be named.
+
+      Visibility is a Setter carrying a Binding, which is legal and is the only way to get this behaviour
+      without a code-behind. Note the consequence: setting Visibility explicitly at the use site would
+      silently win over the style and pin the banner open.
+
+      LiveSetting="Polite" makes a screen reader announce the message when it changes. Without it the
+      banner is a silent visual event, and the messages here are exactly the ones a non-sighted user most
+      needs — a failed lock, a service that is not reachable.
+
+      No entrance animation. The control is shown and hidden through Visibility, and animating across a
+      collapse means either keeping the row's height reserved while it is empty or driving opacity from a
+      second trigger that fights the converter. A banner that appears instantly is not the problem this
+      pass was solving.
+  -->
+  <Style x:Key="PageBanner" TargetType="ContentControl">
+    <Setter Property="Margin" Value="{StaticResource Space.Stack.L}" />
+    <Setter Property="Visibility" Value="{Binding Message, Converter={StaticResource TextToVisible}}" />
+    <Setter Property="AutomationProperties.LiveSetting" Value="Polite" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContentControl">
+          <Border x:Name="Chrome"
+                  Style="{StaticResource Banner.Info}"
+                  SnapsToDevicePixels="True">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path x:Name="Glyph"
+                    Style="{StaticResource Icon.Inline}"
+                    Data="{StaticResource Icon.Info}"
+                    Stroke="{DynamicResource Accent}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <TextBlock Grid.Column="1"
+                         Margin="{StaticResource Space.Inline.S}"
+                         Style="{StaticResource Text.Small}"
+                         Foreground="{DynamicResource Text.Primary}"
+                         Text="{Binding Message}" />
+            </Grid>
+          </Border>
+
+          <ControlTemplate.Triggers>
+            <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+              <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource State.Bad}" />
+              <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.Alert}" />
+              <Setter TargetName="Glyph" Property="Stroke" Value="{DynamicResource State.Bad}" />
+            </DataTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Badges: a short status word beside the thing it describes — Locked, Hidden, Throttled. Same move as
+      the banners, off Surface.Input and onto Surface.Raised so a badge inside a card is still visible in
+      the light palette.
+
+      Colour is never the only signal. Each variant changes the hairline and the app pairs it with a word,
+      because a bare coloured dot is unreadable to roughly one man in twelve.
+  -->
+  <Style x:Key="Badge" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Border.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="Padding" Value="{StaticResource Pad.Badge}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style x:Key="Badge.Good" TargetType="Border" BasedOn="{StaticResource Badge}">
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Good}" />
+  </Style>
+
+  <Style x:Key="Badge.Warn" TargetType="Border" BasedOn="{StaticResource Badge}">
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Warn}" />
+  </Style>
+
+  <Style x:Key="Badge.Bad" TargetType="Border" BasedOn="{StaticResource Badge}">
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Bad}" />
+  </Style>
+
+  <!--
+      A badge that colours itself from the word inside it. Used by the onboarding permissions step,
+      where four rows each report a different prerequisite and the alternative is the same eight-line
+      DataTrigger pasted into each of them.
+
+      The trigger binds {Binding} — the DataContext itself — so the use site passes the status string as
+      the badge's DataContext and the label inside binds {Binding} too:
+
+        <Border Style="{StaticResource Badge.Status}" DataContext="{Binding ServiceStatus}">
+          <TextBlock Style="{StaticResource Badge.Text}" Text="{Binding}" />
+        </Border>
+
+      The vocabulary is closed: "Ready" is good, "Optional" is amber, and anything else is the problem
+      itself in the user's words — "Not running", "Not responding" — which is why the default is red.
+  -->
+  <Style x:Key="Badge.Status" TargetType="Border" BasedOn="{StaticResource Badge}">
+    <Setter Property="BorderBrush" Value="{DynamicResource State.Bad}" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding}" Value="Ready">
+        <Setter Property="BorderBrush" Value="{DynamicResource State.Good}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding}" Value="Optional">
+        <Setter Property="BorderBrush" Value="{DynamicResource State.Warn}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!--
+      The label inside a badge: 11px, semibold, never wrapping. Sentence case, not uppercase — a TextBlock
+      has no CharacterCasing property, so faking small caps would mean typing "LOCKED" into the view and
+      handing that to the screen reader as well as to the eye.
+  -->
+  <Style x:Key="Badge.Text" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+
+  <!-- ==================================================================
+       Empty states
+       ================================================================== -->
+
+  <!--
+      The tinted disc an empty-state icon sits in. This is how an icon gains visual weight without being
+      scaled: the glyph stays at its designed 24px with its designed 1.5px stroke, and the disc around it
+      does the work. Scaling the Path instead keeps the pen at 1.5 device units and produces a hairline
+      outline that looks unrelated to every other icon on the page — see the header of Icons.xaml.
+
+      56 and 28 are the control, not spacing, which is why they are literals here.
+  -->
+  <Style x:Key="EmptyState.Badge" TargetType="Border">
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="56" />
+    <Setter Property="CornerRadius" Value="28" />
+    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+
+  <Style x:Key="EmptyState.Title" TargetType="TextBlock" BasedOn="{StaticResource Text.Subheading}">
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="{StaticResource Space.Stack.M}" />
+  </Style>
+
+  <!--
+      Kept under its original key, because four views already reference it. It gains a MaxWidth: an
+      explanatory line that runs the full width of a maximised window is a single 140-character measure,
+      and the eye loses the start of the next line. 320px is roughly 55 characters at 13px.
+  -->
+  <Style x:Key="EmptyState.Text" TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="MaxWidth" Value="320" />
+    <Setter Property="Margin" Value="{StaticResource Space.Stack.S}" />
+  </Style>
+
+  <!-- ==================================================================
+       Skeleton loaders
+       ================================================================== -->
+
+  <!-- One grey block. Everything a skeleton is made of. -->
+  <Style x:Key="Skeleton.Block" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Surface.Skeleton}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+
+  <!--
+      Six placeholder rows, shaped like the real ones: an icon square, a name, a subtitle. Shown while the
+      app list is being enumerated, which is the one operation in this app slow enough to need it —
+      reading every installed application's metadata takes a second or two on a cold cache.
+
+      Drop it into a view beside the real list:
+
+        <ContentControl Style="{StaticResource SkeletonList}"
+                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
+      IsBusy is public to read and already raises change notification, so this needs no view-model change
+      to *display*; it only needs the view models to actually set IsBusy around their loads.
+
+      The pulse is one animation on the whole control rather than one per block. Twelve independent
+      storyboards, or a shimmer built from moving gradient brushes, would put real per-frame cost on the
+      composition thread at precisely the moment the app is already busy doing work.
+
+      The EventTrigger is in Style.Triggers, not ControlTemplate.Triggers, and that placement is
+      deliberate: a storyboard begun from a style trigger with no TargetName animates the styled element
+      itself, with no question about how the target resolves inside a template's namescope.
+  -->
+  <Style x:Key="SkeletonList" TargetType="ContentControl">
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContentControl">
+          <StackPanel>
+            <!--
+                Pad.Row appears here as a Margin rather than a Padding because a Grid has no Padding.
+                It is the same Thickness the real rows use, which is the point: the skeleton has to
+                occupy the same vertical rhythm as the content it stands in for, or the list visibly
+                jumps when the real data arrives.
+
+                The bar widths vary from row to row. Six identical rows read as a rendering glitch; an
+                uneven set reads as text that has not arrived yet.
+            -->
+            <Grid Margin="{StaticResource Pad.Row}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Skeleton.Block}" Width="24" Height="24" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}" VerticalAlignment="Center">
+                <Border Style="{StaticResource Skeleton.Block}" Width="140" Height="10" />
+                <Border Style="{StaticResource Skeleton.Block}" Width="90" Height="8"
+                        Margin="{StaticResource Space.Stack.S}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="{StaticResource Pad.Row}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Skeleton.Block}" Width="24" Height="24" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}" VerticalAlignment="Center">
+                <Border Style="{StaticResource Skeleton.Block}" Width="182" Height="10" />
+                <Border Style="{StaticResource Skeleton.Block}" Width="112" Height="8"
+                        Margin="{StaticResource Space.Stack.S}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="{StaticResource Pad.Row}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Skeleton.Block}" Width="24" Height="24" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}" VerticalAlignment="Center">
+                <Border Style="{StaticResource Skeleton.Block}" Width="118" Height="10" />
+                <Border Style="{StaticResource Skeleton.Block}" Width="78" Height="8"
+                        Margin="{StaticResource Space.Stack.S}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="{StaticResource Pad.Row}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Skeleton.Block}" Width="24" Height="24" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}" VerticalAlignment="Center">
+                <Border Style="{StaticResource Skeleton.Block}" Width="204" Height="10" />
+                <Border Style="{StaticResource Skeleton.Block}" Width="132" Height="8"
+                        Margin="{StaticResource Space.Stack.S}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="{StaticResource Pad.Row}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Skeleton.Block}" Width="24" Height="24" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}" VerticalAlignment="Center">
+                <Border Style="{StaticResource Skeleton.Block}" Width="152" Height="10" />
+                <Border Style="{StaticResource Skeleton.Block}" Width="96" Height="8"
+                        Margin="{StaticResource Space.Stack.S}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="{StaticResource Pad.Row}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Skeleton.Block}" Width="24" Height="24" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}" VerticalAlignment="Center">
+                <Border Style="{StaticResource Skeleton.Block}" Width="168" Height="10" />
+                <Border Style="{StaticResource Skeleton.Block}" Width="104" Height="8"
+                        Margin="{StaticResource Space.Stack.S}" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+        <BeginStoryboard Storyboard="{StaticResource SkeletonPulse}" />
+      </EventTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!--
+      ==================== segmented meters ====================
+
+      Two meters in the app share one construction: the onboarding wizard's progress rail and the PIN
+      strength meter. Both show a small whole number out of four, and both are built from four fixed
+      segments rather than one proportional bar.
+
+      Why segments. A proportional bar has to express its width as a fraction of its parent, which in
+      WPF means either a converter returning a GridLength or a binding to the parent's ActualWidth —
+      both of which make the meter depend on layout having already run, and the second of which
+      re-enters layout when it changes. Four segments have no such dependency. They are also the honest
+      presentation of a quantity that is itself discrete: a PIN scores 0, 1, 2, 3 or 4, and a smoothly
+      sliding bar would imply a precision the score does not have.
+
+      Why two Borders per segment. The unlit track has to stay visible underneath, so the lit part is a
+      second Border on top rather than a Background swap. That also puts the threshold — which segment
+      this is — at the use site as a converter parameter, instead of forcing four near-identical styles
+      with the number baked into a DataTrigger. The colour logic stays here, in one place, and the view
+      says only which segment it is.
+
+      Why the lit layer uses Visibility and not Opacity. IntAtLeast returns a Visibility when the
+      binding target is one, so a lit segment is a single attribute in the view with no chained
+      converter. Nothing here fades: the strength meter changes on a keystroke, and a 140 ms fade would
+      leave the caret ahead of the meter and, worse, leave the word "Strong" on screen beside a segment
+      still at half opacity. The meter and its label must agree at every frame.
+
+      Neither meter is interactive. The rail is not navigation — a wizard step is reached by completing
+      the one before it — and the strength meter is a readout. Neither takes focus or hit-testing.
+  -->
+
+  <!--
+      The unlit track of one wizard progress-rail segment.
+
+      No Width: the segment stretches into its Grid column, so the rail is as wide as whatever it sits
+      under and the four segments stay equal at any window size.
+
+      Height 4 with Radius.Small, which is also 4 — WPF clamps a corner radius to half the smaller side,
+      so this renders as a fully rounded 4px bar. That is the intended shape and it needs no new token;
+      Radius.Switch stays the only radius that exists to make something a pill on purpose.
+  -->
+  <Style x:Key="Rail.Segment" TargetType="Border">
+    <Setter Property="Height" Value="4" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+
+  <!--
+      The lit part of a rail segment. Sits in the same Grid cell as its track, above it in z-order.
+
+      Accent for every lit segment: the rail says how far through setup the user has come, and the steps
+      are not ranked against each other, so there is nothing for a second colour to mean.
+  -->
+  <Style x:Key="Rail.Segment.Fill" TargetType="Border" BasedOn="{StaticResource Rail.Segment}">
+    <Setter Property="Background" Value="{DynamicResource Accent}" />
+  </Style>
+
+  <!--
+      The PIN strength meter's unlit track. Its own key rather than a reuse of Rail.Segment, so that a
+      later change to the wizard's rail cannot silently restyle a security control.
+  -->
+  <Style x:Key="Strength.Segment" TargetType="Border" BasedOn="{StaticResource Rail.Segment}" />
+
+  <!--
+      The lit part of a strength segment. One style serves all four, because the colour of a lit segment
+      depends only on the score as a whole — a score of 2 lights two segments and both of them are Fair
+      — so these triggers never need to know which segment they are on.
+
+      Bound to the string StrengthLevel rather than to the numeric StrengthScore, so the bars and the
+      word beside them read from one property and cannot disagree.
+
+      The ladder is State.Bad, State.Warn, Accent, State.Good. Accent rather than a second amber for
+      Good, because Good is the point at which the PIN is acceptable and the app's own colour says that
+      without claiming it is the best available; green is held back for Strong. Colour is never the only
+      signal here — Strength.Label spells the level out immediately beside the bars.
+
+      The default is State.Bad: a lit segment whose level matched none of the triggers would mean a
+      view-model string the view does not know, and red is the reading that does not overstate a secret.
+  -->
+  <Style x:Key="Strength.Segment.Fill" TargetType="Border" BasedOn="{StaticResource Rail.Segment}">
+    <Setter Property="Background" Value="{DynamicResource State.Bad}" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding StrengthLevel}" Value="Fair">
+        <Setter Property="Background" Value="{DynamicResource State.Warn}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding StrengthLevel}" Value="Good">
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding StrengthLevel}" Value="Strong">
+        <Setter Property="Background" Value="{DynamicResource State.Good}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!--
+      The word beside the strength meter. It repeats the fill's trigger ladder so that the label and the
+      bars are coloured from the same property, and it is the accessible statement of strength rather
+      than a caption on one: a Border carries no useful automation text, so a screen-reader user reads
+      the level here or does not read it at all. The view sets AutomationProperties.LiveSetting="Polite"
+      on this element, which announces a change in level without cutting across the user's typing.
+  -->
+  <Style x:Key="Strength.Label" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource State.Bad}" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding StrengthLevel}" Value="Fair">
+        <Setter Property="Foreground" Value="{DynamicResource State.Warn}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding StrengthLevel}" Value="Good">
+        <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding StrengthLevel}" Value="Strong">
+        <Setter Property="Foreground" Value="{DynamicResource State.Good}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!--
+      Usage, wizard rail. Four star columns, both layers of a segment in the same cell, and an 8px
+      gutter on every segment except the first. StepIndex is 1 based, so step 1 lights one segment.
+
+      <Grid VerticalAlignment="Center">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Style="{StaticResource Rail.Segment}" />
+        <Border Style="{StaticResource Rail.Segment.Fill}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast},
+                                     ConverterParameter=1}" />
+
+        <Border Grid.Column="1" Style="{StaticResource Rail.Segment}"
+                Margin="{StaticResource Space.Inline.S}" />
+        <Border Grid.Column="1" Style="{StaticResource Rail.Segment.Fill}"
+                Margin="{StaticResource Space.Inline.S}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast},
+                                     ConverterParameter=2}" />
+
+        <Border Grid.Column="2" Style="{StaticResource Rail.Segment}"
+                Margin="{StaticResource Space.Inline.S}" />
+        <Border Grid.Column="2" Style="{StaticResource Rail.Segment.Fill}"
+                Margin="{StaticResource Space.Inline.S}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast},
+                                     ConverterParameter=3}" />
+
+        <Border Grid.Column="3" Style="{StaticResource Rail.Segment}"
+                Margin="{StaticResource Space.Inline.S}" />
+        <Border Grid.Column="3" Style="{StaticResource Rail.Segment.Fill}"
+                Margin="{StaticResource Space.Inline.S}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast},
+                                     ConverterParameter=4}" />
+      </Grid>
+
+      The gutter is repeated on both layers of a segment because a Style cannot carry it: the first
+      segment must not have one, and the alternative is a fifth style differing only in a margin.
+  -->
+
+  <!--
+      Usage, PIN strength meter. The same four cells, with the label in a fifth Auto column so the bars
+      keep the width the text does not need.
+
+      <Grid Margin="{StaticResource Space.Stack.S}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Border Style="{StaticResource Strength.Segment}" />
+        <Border Style="{StaticResource Strength.Segment.Fill}"
+                Visibility="{Binding StrengthScore, Converter={StaticResource IntAtLeast},
+                                     ConverterParameter=1}" />
+
+        (columns 1, 2 and 3 repeat with Margin="{StaticResource Space.Inline.S}"
+         and ConverterParameter 2, 3 and 4)
+
+        <TextBlock Grid.Column="4" Style="{StaticResource Strength.Label}"
+                   Margin="{StaticResource Space.Inline.M}"
+                   Text="{Binding StrengthLevel}"
+                   AutomationProperties.LiveSetting="Polite" />
+      </Grid>
+
+      StrengthScore and StrengthLevel are pushed onto the view model from the PasswordBox's
+      PasswordChanged handler in code behind, because PasswordBox.Password is not a dependency property
+      and cannot be bound. That is already how the onboarding and Settings secret boxes reach their view
+      models, so the meter adds no new mechanism — only two more properties for the existing handler to
+      set.
+  -->
+
+
+
+
+</ResourceDictionary>

@@ -1,0 +1,151 @@
+<!--
+    HiddenAppsView.xaml — the way back. FR-604, FR-605, FR-607.
+
+    This page is a safety mechanism before it is a list. Hiding moves a window somewhere the user
+    cannot reach through the taskbar or Alt+Tab, so if this list were wrong or this page were
+    missing, the window would be gone for good. "Bring back everything" is therefore prominent and
+    always available, not tucked into a menu.
+
+    Two separate actions per row, because they are different intentions: bringing a window back
+    once leaves the rule in place, while turning hiding off is a change to the rule itself.
+-->
+<UserControl x:Class="AppGuardian.UI.Views.HiddenAppsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+             xmlns:controls="clr-namespace:AppGuardian.UI.Controls"
+             d:DataContext="{d:DesignInstance Type=vm:HiddenAppsViewModel}"
+             mc:Ignorable="d">
+
+  <Grid Margin="{StaticResource Pad.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Grid Grid.Row="0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <TextBlock Grid.Column="0" Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+      <Button Grid.Column="1"
+              Content="Bring back everything"
+              Style="{StaticResource Button.Primary}"
+              Command="{Binding RevealAllCommand}"
+              AutomationProperties.Name="Bring back all hidden apps to current desktop"
+              VerticalAlignment="Center"
+              ToolTip="Brings every hidden window back to this desktop, one at a time. Rules are left as they are." />
+    </Grid>
+
+    <!--
+        The strength disclosure sits directly under the heading, not at the bottom of the page. On a PC
+        that has fallen back to minimising, this is the difference between "hidden" and "tidied away",
+        and a user should read it before they trust the list below it.
+    -->
+    <Border Grid.Row="1" Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.S}" Padding="{StaticResource Pad.L}">
+      <TextBlock Text="{Binding StrengthDisclosure}">
+        <TextBlock.Style>
+          <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+            <Style.Triggers>
+              <!-- Amber on the fallback path: the guarantee is genuinely weaker and should not read as normal. -->
+              <DataTrigger Binding="{Binding UsesRealDesktops}" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource State.Warn}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </TextBlock.Style>
+      </TextBlock>
+    </Border>
+
+    <ContentControl Grid.Row="2" Style="{StaticResource PageBanner}" />
+
+    <Border Grid.Row="3"
+            Style="{StaticResource Card.Flush}"
+            Padding="0"
+            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToCollapsed}}">
+      <ListBox ItemsSource="{Binding Rows}"
+               AutomationProperties.Name="Apps set to be hidden"
+               ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+            <Setter Property="Focusable" Value="False" />
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:HiddenRowViewModel}">
+            <Grid Margin="0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="0,2,0,0"
+                           Text="{Binding ExecutablePath}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding ExecutablePath,
+                                                Converter={StaticResource TextToVisible}}" />
+
+                <!--
+                    Shown rather than filtered out. A rule that is switched off is not hiding anything
+                    right now, but it is still the reason this app appears here, and dropping it from the
+                    list would make it invisible and unrecoverable from this page.
+                -->
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="0,2,0,0"
+                           Foreground="{DynamicResource State.Warn}"
+                           Text="This rule is switched off, so nothing is being hidden for this app."
+                           Visibility="{Binding IsRuleDisabled, Converter={StaticResource BoolToVisible}}" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource Button.Quiet}"
+                        Content="Bring back"
+                        Command="{Binding DataContext.RevealCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"
+                        AutomationProperties.Name="Bring back this app to current desktop"
+                        Margin="0,0,8,0"
+                        ToolTip="Brings this app's windows back now. It will be hidden again when it next starts." />
+
+                <Button Style="{StaticResource Button.Quiet}"
+                        Content="Stop hiding"
+                        Command="{Binding DataContext.StopHidingCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"
+                        AutomationProperties.Name="Stop hiding this app"
+                        ToolTip="Brings the windows back and turns hiding off for this app for good." />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!--
+        Hidden has two empty states: nothing hidden yet, and the agent not running so hiding fell back to
+        minimising and then nothing is hidden either. The body text differs in each case, so this stays an
+        inline EmptyState rather than a template in PageTemplates.
+    -->
+    <controls:EmptyState Grid.Row="3"
+                         Icon="{StaticResource Icon.EyeOff}"
+                         Headline="Nothing is set to be hidden"
+                         Body="Turn hiding on for an app from the Apps page, and its windows leave the taskbar and Alt+Tab until you bring them back."
+                         ActionText="Open the Apps page"
+                         ActionCommand="{Binding DataContext.NavigateCommand,
+                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         ActionCommandParameter="{x:Static vm:PageId.Apps}"
+                         Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisible}}" />
+  </Grid>
+</UserControl>

@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AppGuardian.Agent — SRS §8.3. Runs in the interactive user's session, unelevated.
+
+    Exists only because of Session 0 isolation (SRS §8.1): the service cannot draw a
+    window, call Windows Hello, hook the foreground, or touch a virtual desktop, because
+    none of those things exist in session 0. Everything that must happen on the user's
+    desktop happens here.
+
+    Has no privilege of its own and holds no secrets. It asserts "Hello verified" to the
+    service and the service believes it — which is safe only because the pipe DACL admits
+    just the interactive user and administrators (ADR-006, SRS §11).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>AppGuardian.Agent</RootNamespace>
+    <AssemblyName>AppGuardian.Agent</AssemblyName>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      WinExe, not Exe: a console window would flash on every logon. The agent has no UI of
+      its own beyond the overlay, but it does host WPF windows, so it needs a message loop.
+    -->
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
+
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+
+    <!--
+      Windows 10 2004 (19041) is the floor for the projection, not for the product. It is what
+      Windows.Security.Credentials.UI (Hello) and the SDK contracts require; the SRS already
+      targets Windows 10/11 x64 only.
+    -->
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+
+    <!--
+      Debug and console only. The agent is unelevated and cannot write to the event log source the
+      service owns (that source is created by the installer and ACL'd to LocalSystem), so its
+      diagnostics go to the debugger and, when started from a terminal, to stdout.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AppGuardian.Shared\AppGuardian.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

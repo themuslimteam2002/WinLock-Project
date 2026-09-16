@@ -1,0 +1,257 @@
+<!--
+    SettingsView.xaml — credentials, disclosures, diagnostics. FR-802, FR-307, FR-607, FR-707.
+
+    SPEC CONFLICT SC-13: FR-802 asks for a settings surface but the project plan has no task for
+    one, so this page's scope comes from the requirements it has to satisfy rather than a plan line.
+    Nothing here edits a preference the contract has no message for — a switch that appeared to save
+    and never left the process would be worse than not offering it.
+
+    The three disclosures are on this page in full, in one place, because they are the honest scope
+    of what the product does and a user should be able to find them without hunting through the
+    feature pages.
+-->
+<UserControl x:Class="AppGuardian.UI.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+             d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
+             mc:Ignorable="d">
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                Padding="{StaticResource Pad.Page.Scrolling}">
+    <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+
+      <TextBlock Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+      <ContentControl Style="{StaticResource PageBanner}" Margin="{StaticResource Space.Stack.M}" />
+
+      <!-- ============ credential ============ -->
+      <Border Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.L}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="How you unlock apps"
+                     Margin="{StaticResource Space.Stack.S}" />
+
+          <TextBlock Style="{StaticResource Text.Body}"
+                     Margin="{StaticResource Space.Stack.XS}"
+                     Text="{Binding HelloStateText}" />
+
+          <CheckBox Content="Use Windows Hello when it is available"
+                    IsChecked="{Binding PreferHello}"
+                    IsEnabled="{Binding HelloAvailable}"
+                    Margin="{StaticResource Space.Stack.S}"
+                    AutomationProperties.Name="Use Windows Hello when it is available" />
+
+          <!-- Lockout state is surfaced here because this is where a locked-out user comes looking. FR-306. -->
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="{StaticResource Space.Stack.S}"
+                     Foreground="{DynamicResource State.Warn}"
+                     Text="{Binding LockoutText}"
+                     Visibility="{Binding LockoutText, Converter={StaticResource TextToVisible}}" />
+
+          <Separator />
+
+          <TextBlock Style="{StaticResource Text.Subheading}"
+                     Margin="{StaticResource Space.Stack.L}"
+                     Text="Change your PIN" />
+
+          <TextBlock Style="{StaticResource Text.Body}"
+                     Margin="{StaticResource Space.Stack.XS}"
+                     Text="You do not need to enter your old PIN — this window already runs as you. Changing it takes effect immediately for every locked app." />
+
+          <PasswordBox x:Name="NewSecretBox"
+                       Style="{StaticResource Input.Base}"
+                       PasswordChanged="OnNewSecretChanged"
+                       Width="260"
+                       VerticalAlignment="Center"
+                       AutomationProperties.Name="New PIN or password" />
+
+          <TextBlock Style="{StaticResource Text.Label}"
+                     Margin="{StaticResource Space.Stack.S}"
+                     Text="Enter it again" />
+
+          <PasswordBox x:Name="ConfirmSecretBox"
+                       Style="{StaticResource Input.Base}"
+                       PasswordChanged="OnConfirmSecretChanged"
+                       Width="260"
+                       VerticalAlignment="Center"
+                       AutomationProperties.Name="Confirm new PIN or password" />
+
+          <TextBlock Style="{StaticResource Text.Small}"
+                     Margin="{StaticResource Space.Stack.XS}"
+                     Foreground="{DynamicResource State.Bad}"
+                     Text="{Binding SecretProblem}"
+                     Visibility="{Binding SecretProblem, Converter={StaticResource TextToVisible}}" />
+
+          <Button Content="Change PIN"
+                  Style="{StaticResource Button.Primary}"
+                  Command="{Binding ChangeSecretCommand}"
+                  AutomationProperties.Name="Save new PIN"
+                  HorizontalAlignment="Left"
+                  Margin="{StaticResource Space.Stack.M}" />
+        </StackPanel>
+      </Border>
+
+      <!-- ============ appearance ============ -->
+      <!--
+          The one preference on this page that is a pure UI choice. It is editable because ThemeService
+          can apply and persist it to the per-user settings.json with no IPC message; everything else in
+          UserSettings needs the service to act on it and has no message defined, so it is not offered.
+
+          RadioButton carries Command directly — it derives from ButtonBase — so IsChecked is a one-way
+          mirror of the view model and the click is what actually changes anything. Two-way binding
+          through a converter would fire twice per selection, once for the clear and once for the set.
+      -->
+      <Border Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.L}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="Appearance"
+                     Margin="{StaticResource Space.Stack.S}" />
+
+          <TextBlock Style="{StaticResource Text.Body}"
+                     Margin="{StaticResource Space.Stack.XS}"
+                     Text="Changes the dashboard only. The lock screen stays dark whichever you choose, because it has to sit over whatever app it is covering." />
+
+          <RadioButton GroupName="Theme"
+                       Content="{Binding ThemeSystemText}"
+                       IsChecked="{Binding ThemeIsSystem, Mode=OneWay}"
+                       Command="{Binding SetThemeCommand}"
+                       CommandParameter="System"
+                       AutomationProperties.Name="Follow Windows theme setting" />
+
+          <RadioButton GroupName="Theme"
+                       Content="Light"
+                       IsChecked="{Binding ThemeIsLight, Mode=OneWay}"
+                       Command="{Binding SetThemeCommand}"
+                       CommandParameter="Light"
+                       AutomationProperties.Name="Light theme" />
+
+          <RadioButton GroupName="Theme"
+                       Content="Dark"
+                       IsChecked="{Binding ThemeIsDark, Mode=OneWay}"
+                       Command="{Binding SetThemeCommand}"
+                       CommandParameter="Dark"
+                       AutomationProperties.Name="Dark theme" />
+        </StackPanel>
+      </Border>
+
+      <!-- ============ what each feature really guarantees ============ -->
+      <Border Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.L}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="What AppGuardian can and cannot do"
+                     Margin="{StaticResource Space.Stack.S}" />
+
+          <TextBlock Style="{StaticResource Text.Label}" Margin="{StaticResource Space.Stack.M}" Text="Locking" />
+          <TextBlock Style="{StaticResource Text.Small}" Text="{Binding LockDisclosure}" />
+
+          <TextBlock Style="{StaticResource Text.Label}" Margin="{StaticResource Space.Stack.M}" Text="Hiding" />
+          <TextBlock Style="{StaticResource Text.Small}" Text="{Binding HideDisclosure}" />
+
+          <TextBlock Style="{StaticResource Text.Label}" Margin="{StaticResource Space.Stack.M}" Text="Battery limits" />
+          <TextBlock Style="{StaticResource Text.Small}" Text="{Binding PowerDisclosure}" />
+
+          <TextBlock Style="{StaticResource Text.Label}" Margin="{StaticResource Space.Stack.M}" Text="Privacy" />
+          <TextBlock Style="{StaticResource Text.Small}" Text="{Binding PrivacyStatement}" />
+        </StackPanel>
+      </Border>
+
+      <!-- ============ diagnostics ============ -->
+      <Border Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.L}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="Status"
+                     Margin="{StaticResource Space.Stack.S}" />
+
+          <Grid Margin="{StaticResource Space.Stack.S}">
+            <Grid.ColumnDefinitions>
+              <!-- Fixed label width so the values do not jog when a row appears. -->
+              <ColumnDefinition Width="160" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Text.Label}" Text="Background service" />
+            <TextBlock Grid.Row="0" Grid.Column="1"
+                       Style="{StaticResource Text.Body}"
+                       Text="{Binding ServiceVersion, Converter={StaticResource FallbackText}}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Text.Label}" Text="Running for" />
+            <TextBlock Grid.Row="1" Grid.Column="1"
+                       Style="{StaticResource Text.Body}"
+                       Text="{Binding ServiceUptimeText, Converter={StaticResource FallbackText}}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Text.Label}" Text="Desktop component" />
+            <TextBlock Grid.Row="2" Grid.Column="1"
+                       Style="{StaticResource Text.Body}"
+                       Text="{Binding AgentVersion, Converter={StaticResource FallbackText}}" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Text.Label}" Text="Desktop component state" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AgentStateText}">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding AgentRunning}" Value="False">
+                      <Setter Property="Foreground" Value="{DynamicResource State.Warn}" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+          </Grid>
+
+          <Button Style="{StaticResource Button.Quiet}"
+                  Content="Refresh"
+                  Command="{Binding RefreshCommand}"
+                  AutomationProperties.Name="Refresh diagnostic status"
+                  HorizontalAlignment="Left"
+                  Margin="{StaticResource Space.Stack.M}" />
+        </StackPanel>
+      </Border>
+
+      <!-- ============ reset ============ -->
+      <Border Style="{StaticResource Card}" Margin="{StaticResource Space.Stack.L}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Text.Subheading}" Text="Forgotten your PIN?"
+                     Margin="{StaticResource Space.Stack.S}" />
+
+          <TextBlock Style="{StaticResource Text.Body}"
+                     Margin="{StaticResource Space.Stack.XS}"
+                     Foreground="{DynamicResource State.Warn}"
+                     Text="{Binding ResetWarning}" />
+
+          <!--
+              A two-step gesture rather than a modal dialog. This is the only destructive action in the
+              product, but it is also the only way back for someone who has forgotten their PIN, so it must
+              not be buried — and it must not fire on a single stray click either.
+          -->
+          <Button Content="Reset my PIN…"
+                  Style="{StaticResource Button.Danger}"
+                  Command="{Binding ArmResetCommand}"
+                  AutomationProperties.Name="Begin PIN reset process"
+                  HorizontalAlignment="Left"
+                  Margin="{StaticResource Space.Stack.S}"
+                  Visibility="{Binding ResetArmed, Converter={StaticResource BoolToCollapsed}}" />
+
+          <StackPanel Orientation="Horizontal"
+                      Margin="{StaticResource Space.Stack.S}"
+                      Visibility="{Binding ResetArmed, Converter={StaticResource BoolToVisible}}">
+            <Button Content="Yes, clear my PIN and turn off every lock"
+                    Style="{StaticResource Button.Danger}"
+                    Command="{Binding ResetCommand}"
+                    AutomationProperties.Name="Confirm reset PIN and clear all locks" />
+
+            <Button Content="Cancel"
+                    Command="{Binding CancelResetCommand}"
+                    AutomationProperties.Name="Cancel PIN reset"
+                    Margin="{StaticResource Space.Inline.S}"
+                    IsCancel="True" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

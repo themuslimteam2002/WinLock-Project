@@ -1,0 +1,716 @@
+<!--
+    OnboardingView.xaml — first run, as a four-step wizard. FR-300, FR-301, FR-801.
+
+    One narrow column, centred. This is the only screen in the product with nothing to compare or
+    scan, and a full-width form would put the PIN box a hand-span from its label on a wide monitor.
+
+    Four steps rather than one long form, because the four things being asked are different in kind:
+    what the app is, what Windows already does or does not allow, the one secret the user has to
+    choose, and where to go next. A single page mixes a privacy statement in with a password field
+    and the user reads neither carefully.
+
+    Nothing here can be skipped. There is no "later" button, because every lock in the product
+    resolves to a credential, and a rule set with no credential behind it is a promise the app
+    cannot keep.
+
+    Step 2 reports state; it does not request permissions. Windows has no per-app permission gate for
+    anything AppGuardian does — no accessibility grant, no overlay grant — so the honest thing is to
+    show what is true on this PC right now and offer a link to the Settings page where the user can
+    change it. That is why those buttons read "Open Settings" and not "Grant".
+
+    The four panels sit in one Grid cell to say that they occupy the same place. That does not hold the
+    card at a constant height: WPF does not measure Collapsed children, and BoolToVisible yields
+    Collapsed, so the card still sizes to whichever panel is showing.
+
+    Both PasswordBoxes are named and wired in code-behind. PasswordBox.Password is deliberately not a
+    dependency property — a password should not be reachable by walking the visual tree — so the names
+    SecretBox and ConfirmBox are a contract with OnboardingView.xaml.cs and must not change.
+-->
+<UserControl x:Class="AppGuardian.UI.Views.OnboardingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AppGuardian.UI.ViewModels"
+             Loaded="OnLoaded"
+             Unloaded="OnUnloaded"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:OnboardingViewModel}">
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                Padding="{StaticResource Pad.Page.Scrolling}">
+    <StackPanel MaxWidth="520" HorizontalAlignment="Center">
+      <!--
+          The progress rail. Four segments plus the sentence that says the same thing in words, because
+          a bar is a shape and a shape is not readable by a screen reader or by anyone who cannot pick
+          the accent colour out of the track colour.
+
+          Each segment is two Borders in one cell: the track always there, the fill shown once StepIndex
+          has reached that segment's number. IntAtLeast returns a Visibility when the binding target is
+          one, so the whole condition is a single attribute.
+
+          The 8px gap is a Margin repeated on both layers of segments two, three and four rather than a
+          Setter, because segment one must not have one — a style cannot express "all but the first".
+      -->
+      <Grid Margin="{StaticResource Space.Stack.S}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource Rail.Segment}" />
+        <Border Grid.Column="0"
+                Style="{StaticResource Rail.Segment.Fill}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast}, ConverterParameter=1}" />
+
+        <Border Grid.Column="1" Style="{StaticResource Rail.Segment}" Margin="{StaticResource Space.Inline.S}" />
+        <Border Grid.Column="1"
+                Style="{StaticResource Rail.Segment.Fill}"
+                Margin="{StaticResource Space.Inline.S}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast}, ConverterParameter=2}" />
+
+        <Border Grid.Column="2" Style="{StaticResource Rail.Segment}" Margin="{StaticResource Space.Inline.S}" />
+        <Border Grid.Column="2"
+                Style="{StaticResource Rail.Segment.Fill}"
+                Margin="{StaticResource Space.Inline.S}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast}, ConverterParameter=3}" />
+
+        <Border Grid.Column="3" Style="{StaticResource Rail.Segment}" Margin="{StaticResource Space.Inline.S}" />
+        <Border Grid.Column="3"
+                Style="{StaticResource Rail.Segment.Fill}"
+                Margin="{StaticResource Space.Inline.S}"
+                Visibility="{Binding StepIndex, Converter={StaticResource IntAtLeast}, ConverterParameter=4}" />
+
+        <TextBlock Grid.Column="4"
+                   Style="{StaticResource Text.Caption}"
+                   Margin="{StaticResource Space.Inline.M}"
+                   VerticalAlignment="Center"
+                   Text="{Binding StepIndex, StringFormat='Step {0} of 4'}" />
+      </Grid>
+      <!--
+          Card.Elevated exists for this one card: the wizard is the only screen where a surface floats
+          over an otherwise empty page, and a shadow is what tells the eye the page continues behind it.
+      -->
+      <Border Style="{StaticResource Card.Elevated}" Margin="{StaticResource Space.Stack.L}">
+
+        <!--
+            The step host. One Grid cell holds all four panels, and the entrance runs on the host rather
+            than on each panel: a Collapsed panel cannot animate, and by the time it is Visible the
+            trigger that made it visible has already fired.
+
+            Each step gets its own DataTrigger with its own named BeginStoryboard and a StopStoryboard
+            beside it. The stop matters — an animation left holding its final value owns the property
+            forever, and Opacity stuck at 1 from step one is harmless right up until something else
+            tries to fade this element.
+
+            From="12" is downward, so the panel rises the last 12px into place. It overflows only into
+            the card's own bottom padding on the way, so nothing is ever drawn over the rail above.
+
+            The Value="1" trigger is already true when the page loads, which is where the first
+            entrance comes from.
+        -->
+        <Grid>
+          <Grid.RenderTransform>
+            <TranslateTransform />
+          </Grid.RenderTransform>
+
+          <Grid.Style>
+            <Style TargetType="Grid">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding StepIndex}" Value="1">
+                  <DataTrigger.EnterActions>
+                    <BeginStoryboard Name="EnterStep1" Storyboard="{StaticResource WizardStepEnter}" />
+                  </DataTrigger.EnterActions>
+                  <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="EnterStep1" />
+                  </DataTrigger.ExitActions>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding StepIndex}" Value="2">
+                  <DataTrigger.EnterActions>
+                    <BeginStoryboard Name="EnterStep2" Storyboard="{StaticResource WizardStepEnter}" />
+                  </DataTrigger.EnterActions>
+                  <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="EnterStep2" />
+                  </DataTrigger.ExitActions>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding StepIndex}" Value="3">
+                  <DataTrigger.EnterActions>
+                    <BeginStoryboard Name="EnterStep3" Storyboard="{StaticResource WizardStepEnter}" />
+                  </DataTrigger.EnterActions>
+                  <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="EnterStep3" />
+                  </DataTrigger.ExitActions>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding StepIndex}" Value="4">
+                  <DataTrigger.EnterActions>
+                    <BeginStoryboard Name="EnterStep4" Storyboard="{StaticResource WizardStepEnter}" />
+                  </DataTrigger.EnterActions>
+                  <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="EnterStep4" />
+                  </DataTrigger.ExitActions>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Grid.Style>
+
+          <!-- ============ step 1: what this is ============ -->
+          <StackPanel Visibility="{Binding IsWelcomeStep, Converter={StaticResource BoolToVisible}}">
+
+            <!--
+                EmptyState.Badge is reused here as a plain tinted badge; the key name only records where
+                it was first needed. The glyph stays at 24 inside the 56px circle because WPF measures a
+                pen in final device units — a 24px geometry stretched to 56 keeps its 1.5px stroke and
+                arrives looking hairline next to every other icon in the app.
+            -->
+            <Border Style="{StaticResource EmptyState.Badge}">
+              <Path Style="{StaticResource Icon.Accent}"
+                    Data="{StaticResource Icon.ShieldCheck}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+            </Border>
+
+            <TextBlock Style="{StaticResource Text.Display}"
+                       Margin="{StaticResource Space.Stack.L}"
+                       TextAlignment="Center"
+                       Text="{Binding Title}" />
+
+            <TextBlock Style="{StaticResource Text.Body}"
+                       Margin="{StaticResource Space.Stack.S}"
+                       TextAlignment="Center"
+                       Text="AppGuardian locks, hides and slows down apps on this PC. There is no account to create and nothing to sign in to." />
+            <!--
+                Three statements, not three selling points. Two of them are things the user would
+                otherwise have to take on trust, and the third is a limit — a lock here is a prompt in
+                front of a window, not a Windows security boundary, and saying so on the first screen is
+                cheaper than a support thread later.
+
+                Its glyph is muted rather than accent: an accent tick beside a caveat reads as a feature,
+                which is the one thing this line is not.
+            -->
+            <Grid Margin="{StaticResource Space.Stack.XL}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Stroke="{DynamicResource Accent}"
+                    Data="{StaticResource Icon.Desktop}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Label}" Text="Everything stays local" />
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="No network connections, no telemetry, no cloud. Your rules live in a database on this PC." />
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="{StaticResource Space.Stack.L}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Stroke="{DynamicResource Accent}"
+                    Data="{StaticResource Icon.Service}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Label}" Text="One small background service" />
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="It starts with Windows and does nothing but enforce the rules you set. Close this window and your locks keep working." />
+              </StackPanel>
+            </Grid>
+            <Grid Margin="{StaticResource Space.Stack.L}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Stroke="{DynamicResource Text.Muted}"
+                    Data="{StaticResource Icon.Info}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <StackPanel Grid.Column="1" Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Label}" Text="What a lock is, and is not" />
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="A lock is a prompt in front of an app, not a Windows security boundary. Someone with administrator access to this PC can get past it." />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+
+          <!-- ============ step 2: what Windows allows ============ -->
+          <StackPanel Visibility="{Binding IsPermissionsStep, Converter={StaticResource BoolToVisible}}">
+
+            <TextBlock Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+            <!--
+                Deliberately not "grant permission". AppGuardian cannot change any of these from here —
+                three of the four are Windows settings the user owns, and the fourth is a service that
+                either answers or does not. Every button on this step either opens the matching Settings
+                page or asks again.
+            -->
+            <TextBlock Style="{StaticResource Text.Body}"
+                       Margin="{StaticResource Space.Stack.S}"
+                       Text="AppGuardian cannot change any of these for you. Each one opens the Windows setting it depends on, so you can see for yourself what is on." />
+
+            <Grid Margin="{StaticResource Space.Stack.L}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Data="{StaticResource Icon.Service}"
+                    VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Label}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         VerticalAlignment="Center"
+                         Text="Background service" />
+
+              <!--
+                  Badge.Status reads the status word out of its own DataContext — its triggers compare
+                  {Binding}, the context itself — so the string is handed to the Border rather than to the
+                  TextBlock inside it. One badge style then serves every status in the app without knowing
+                  which property it came from.
+              -->
+              <Border Grid.Column="2"
+                      Style="{StaticResource Badge.Status}"
+                      DataContext="{Binding ServiceStatus}">
+                <TextBlock Style="{StaticResource Badge.Text}" Text="{Binding}" />
+              </Border>
+
+              <StackPanel Grid.Row="1"
+                          Grid.Column="1"
+                          Grid.ColumnSpan="2"
+                          Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="This is the part that actually holds a lock closed. It installs with AppGuardian and starts with Windows, so there is no setting to turn on — if it is not answering yet, give it a moment." />
+
+                <!--
+                    No Settings page to send anyone to, so this row's action is to ask again rather than
+                    to open something. Services can be reached from services.msc, but sending a user there
+                    to start something that starts itself is an invitation to break it.
+                -->
+                <Button Style="{StaticResource Button.Quiet}"
+                        Content="Check again"
+                        Command="{Binding RecheckCommand}"
+                        Margin="{StaticResource Space.Stack.S}"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
+            </Grid>
+
+            <Separator />
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <Path Style="{StaticResource Icon.Inline}"
+                    Data="{StaticResource Icon.Desktop}"
+                    VerticalAlignment="Center" />
+
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Label}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         VerticalAlignment="Center"
+                         Text="Desktop agent" />
+
+              <Border Grid.Column="2"
+                      Style="{StaticResource Badge.Status}"
+                      DataContext="{Binding AgentStatus}">
+                <TextBlock Style="{StaticResource Badge.Text}" Text="{Binding}" />
+              </Border>
+
+              <StackPanel Grid.Row="1"
+                          Grid.Column="1"
+                          Grid.ColumnSpan="2"
+                          Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="The agent is what draws the unlock prompt over a locked app. It runs when you sign in, so if it is not running, check that AppGuardian is allowed to start with Windows." />
+
+                <!--
+                    x:Static rather than the literal "ms-settings:startupapps". The view model keeps an
+                    allow-list of the URIs it will hand to the shell and silently drops anything else, so a
+                    literal typed here would fail closed and leave a button that quietly does nothing.
+                    Naming the constant makes the view unable to drift from that list.
+                -->
+                <Button Style="{StaticResource Button.Quiet}"
+                        Content="Open startup settings"
+                        Command="{Binding OpenSettingsCommand}"
+                        CommandParameter="{x:Static vm:OnboardingViewModel.StartupAppsUri}"
+                        Margin="{StaticResource Space.Stack.S}"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
+            </Grid>
+
+            <Separator />
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <Path Style="{StaticResource Icon.Inline}"
+                    Data="{StaticResource Icon.Fingerprint}"
+                    VerticalAlignment="Center" />
+
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Label}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         VerticalAlignment="Center"
+                         Text="Windows Hello" />
+
+              <Border Grid.Column="2"
+                      Style="{StaticResource Badge.Status}"
+                      DataContext="{Binding HelloStatus}">
+                <TextBlock Style="{StaticResource Badge.Text}" Text="{Binding}" />
+              </Border>
+
+              <StackPanel Grid.Row="1"
+                          Grid.Column="1"
+                          Grid.ColumnSpan="2"
+                          Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="Optional. With Hello set up, a locked app opens with your face, fingerprint or Windows PIN instead of the AppGuardian PIN you are about to choose." />
+
+                <Button Style="{StaticResource Button.Quiet}"
+                        Content="Open sign-in options"
+                        Command="{Binding OpenSettingsCommand}"
+                        CommandParameter="{x:Static vm:OnboardingViewModel.SignInOptionsUri}"
+                        Margin="{StaticResource Space.Stack.S}"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
+            </Grid>
+
+            <Separator />
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Data="{StaticResource Icon.Bell}"
+                    VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Label}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         VerticalAlignment="Center"
+                         Text="Notifications" />
+
+              <!--
+                  Always "Optional", and the view model returns that as a constant. Windows exposes no
+                  reliable per-app answer to "are my notifications getting through" — an app can be allowed
+                  and still be silenced by focus assist, quiet hours or a policy — so a badge that claimed
+                  to know would be guessing in a place the user would read as fact.
+              -->
+              <Border Grid.Column="2"
+                      Style="{StaticResource Badge.Status}"
+                      DataContext="{Binding NotificationsStatus}">
+                <TextBlock Style="{StaticResource Badge.Text}" Text="{Binding}" />
+              </Border>
+
+              <StackPanel Grid.Row="1"
+                          Grid.Column="1"
+                          Grid.ColumnSpan="2"
+                          Margin="{StaticResource Space.Inline.M}">
+                <TextBlock Style="{StaticResource Text.Small}"
+                           Margin="{StaticResource Space.Stack.XS}"
+                           Text="Optional. Notifications are how AppGuardian tells you it blocked something while you were elsewhere. Locks work with them off." />
+
+                <Button Style="{StaticResource Button.Quiet}"
+                        Content="Open notification settings"
+                        Command="{Binding OpenSettingsCommand}"
+                        CommandParameter="{x:Static vm:OnboardingViewModel.NotificationsUri}"
+                        Margin="{StaticResource Space.Stack.S}"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+
+          <!-- ============ step 3: the one secret ============ -->
+          <StackPanel Visibility="{Binding IsSecurityStep, Converter={StaticResource BoolToVisible}}">
+
+            <TextBlock Style="{StaticResource Text.Heading}" Text="{Binding Title}" />
+
+            <TextBlock Style="{StaticResource Text.Body}"
+                       Margin="{StaticResource Space.Stack.S}"
+                       Text="This is what AppGuardian asks for when you open a locked app. It is stored on this PC as a salted hash, which means it cannot be read back — not by anyone with the file, and not by AppGuardian itself." />
+
+            <TextBlock Style="{StaticResource Text.Label}"
+                       Margin="{StaticResource Space.Stack.XL}"
+                       Text="Windows Hello" />
+
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Margin="{StaticResource Space.Stack.XS}"
+                       Text="{Binding HelloExplanation}" />
+            <!--
+                A check box and not the Toggle switch, which is the rule Theme.xaml sets out: a switch is a
+                state that changes the moment it is thrown, a check box is a value that a confirm button
+                saves. Nothing here takes effect until the button at the bottom of the page is pressed.
+
+                Disabled rather than hidden when Hello is not enrolled, with the sentence above saying why.
+                Hiding it would leave a user who expects Hello wondering whether the app supports it at all.
+            -->
+            <CheckBox Content="Use Windows Hello when it is available"
+                      IsChecked="{Binding PreferHello}"
+                      IsEnabled="{Binding HelloAvailable}"
+                      Margin="{StaticResource Space.Stack.S}"
+                      AutomationProperties.Name="Use Windows Hello when it is available" />
+
+            <Separator />
+
+            <TextBlock Style="{StaticResource Text.Label}" Text="PIN" />
+
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Margin="{StaticResource Space.Stack.XS}"
+                       Text="At least six characters, and it stays your way back in if Hello ever stops working. Choose something you will remember: AppGuardian cannot recover it, and resetting it turns off every lock you have set." />
+
+            <PasswordBox x:Name="SecretBox"
+                         PasswordChanged="OnSecretChanged"
+                         Margin="{StaticResource Space.Stack.S}"
+                         AutomationProperties.Name="PIN" />
+
+            <!--
+                The strength meter. Four segments and the word beside them, both driven from the view model
+                so they cannot disagree: the segments read StrengthScore, the word reads StrengthLevel, and
+                the styles for the lit segments take their colour from the word.
+
+                A discrete count rather than a proportional bar, because the score itself is discrete — and
+                because a proportional width in WPF has to be expressed as a fraction of a parent that has
+                already been measured, which makes the meter depend on layout having run.
+
+                MinWidth on the label is what keeps the segments from resizing every time the word changes
+                length; it is the width of the longest level this can show.
+            -->
+            <Grid Margin="{StaticResource Space.Stack.S}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <Border Grid.Column="0" Style="{StaticResource Strength.Segment}" />
+              <Border Grid.Column="0"
+                      Style="{StaticResource Strength.Segment.Fill}"
+                      Visibility="{Binding StrengthScore, Converter={StaticResource IntAtLeast}, ConverterParameter=1}" />
+              <Border Grid.Column="1" Style="{StaticResource Strength.Segment}" Margin="{StaticResource Space.Inline.S}" />
+              <Border Grid.Column="1"
+                      Style="{StaticResource Strength.Segment.Fill}"
+                      Margin="{StaticResource Space.Inline.S}"
+                      Visibility="{Binding StrengthScore, Converter={StaticResource IntAtLeast}, ConverterParameter=2}" />
+
+              <Border Grid.Column="2" Style="{StaticResource Strength.Segment}" Margin="{StaticResource Space.Inline.S}" />
+              <Border Grid.Column="2"
+                      Style="{StaticResource Strength.Segment.Fill}"
+                      Margin="{StaticResource Space.Inline.S}"
+                      Visibility="{Binding StrengthScore, Converter={StaticResource IntAtLeast}, ConverterParameter=3}" />
+
+              <Border Grid.Column="3" Style="{StaticResource Strength.Segment}" Margin="{StaticResource Space.Inline.S}" />
+              <Border Grid.Column="3"
+                      Style="{StaticResource Strength.Segment.Fill}"
+                      Margin="{StaticResource Space.Inline.S}"
+                      Visibility="{Binding StrengthScore, Converter={StaticResource IntAtLeast}, ConverterParameter=4}" />
+
+              <!--
+                  Polite, not Assertive: this changes on every keystroke, and an assertive live region would
+                  interrupt the user mid-word to tell them what they are still typing.
+              -->
+              <TextBlock Grid.Column="4"
+                         Style="{StaticResource Strength.Label}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         MinWidth="56"
+                         TextAlignment="Right"
+                         Text="{Binding StrengthLevel}"
+                         AutomationProperties.LiveSetting="Polite" />
+            </Grid>
+
+            <TextBlock Style="{StaticResource Text.Small}"
+                       Margin="{StaticResource Space.Stack.M}"
+                       Text="Enter it again" />
+
+            <PasswordBox x:Name="ConfirmBox"
+                         PasswordChanged="OnConfirmChanged"
+                         Margin="{StaticResource Space.Stack.XS}"
+                         AutomationProperties.Name="Confirm PIN" />
+          </StackPanel>
+
+          <!-- ============ step 4: where to go next ============ -->
+          <StackPanel Visibility="{Binding IsReadyStep, Converter={StaticResource BoolToVisible}}">
+
+            <Border Style="{StaticResource EmptyState.Badge}">
+              <Path Style="{StaticResource Icon.Accent}"
+                    Data="{StaticResource Icon.Check}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Style="{StaticResource Text.Heading}"
+                       Margin="{StaticResource Space.Stack.L}"
+                       TextAlignment="Center"
+                       Text="{Binding Title}" />
+
+            <!--
+                No success banner behind this. The step is the confirmation, and a banner saying the same
+                thing would be the second sentence in a row telling the user something worked.
+            -->
+            <TextBlock Style="{StaticResource Text.Body}"
+                       Margin="{StaticResource Space.Stack.S}"
+                       TextAlignment="Center"
+                       Text="Your PIN is saved. Nothing is protected yet — the dashboard is where you choose the first app and what should happen to it." />
+
+            <Grid Margin="{StaticResource Space.Stack.XL}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Stroke="{DynamicResource Accent}"
+                    Data="{StaticResource Icon.Lock}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Small}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         Text="Lock an app, and opening it asks for Hello or your PIN first." />
+            </Grid>
+
+            <Grid Margin="{StaticResource Space.Stack.M}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Stroke="{DynamicResource Accent}"
+                    Data="{StaticResource Icon.EyeOff}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Small}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         Text="Hide an app, and it leaves the taskbar and Alt+Tab until you bring it back." />
+            </Grid>
+            <Grid Margin="{StaticResource Space.Stack.M}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Path Style="{StaticResource Icon.Inline}"
+                    Stroke="{DynamicResource Accent}"
+                    Data="{StaticResource Icon.Battery}"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+
+              <TextBlock Grid.Column="1"
+                         Style="{StaticResource Text.Small}"
+                         Margin="{StaticResource Space.Inline.M}"
+                         Text="Throttle an app, and Windows keeps it off your performance cores while it runs in the background." />
+            </Grid>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!--
+          One line, and its Visibility must not be set here — PageBanner binds Visibility to Message in the
+          style, and setting it at the use site pins the banner open with nothing in it.
+
+          It sits below the card rather than above it so that a message about what just happened appears
+          next to the button that caused it, and so that the rail and the heading never move.
+      -->
+      <ContentControl Style="{StaticResource PageBanner}" />
+
+      <!--
+          The footer. Back is always present and disables itself through CanExecute rather than
+          disappearing on the first and last steps, because a button that vanishes takes the layout with it
+          and the primary button would shift under the cursor.
+
+          One primary button, not four. Content and Command are swapped by trigger, which works because a
+          Setter.Value accepts a Binding — the same mechanism PageBanner uses for its own Visibility. The
+          default pair covers Welcome and Permissions, so advancing needs no extra view-model property.
+
+          No AutomationProperties.Name: a Button with string content already reports that string as its
+          name, and a fixed name here would be a fourth string to keep in step with the three above.
+      -->
+      <Grid Margin="{StaticResource Space.Stack.L}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Button Style="{StaticResource Button.Quiet}"
+                Content="Back"
+                Command="{Binding BackCommand}" />
+        <!--
+            IsDefault, so Enter in either PasswordBox submits the step the user is on. On the security step
+            that is the credential write; on the others it is simply Continue.
+        -->
+        <Button Grid.Column="2" IsDefault="True">
+          <Button.Style>
+            <Style TargetType="Button" BasedOn="{StaticResource Button.Primary}">
+              <Setter Property="Content" Value="Continue" />
+              <Setter Property="Command" Value="{Binding NextCommand}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSecurityStep}" Value="True">
+                  <Setter Property="Content" Value="Turn on protection" />
+                  <Setter Property="Command" Value="{Binding FinishCommand}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsReadyStep}" Value="True">
+                  <Setter Property="Content" Value="Open the dashboard" />
+                  <Setter Property="Command" Value="{Binding EnterDashboardCommand}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Button.Style>
+        </Button>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
